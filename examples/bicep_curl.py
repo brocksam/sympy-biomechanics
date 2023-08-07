@@ -87,10 +87,10 @@ class TricepPathway(PathwayBase):
         Bw.set_pos(self.P, -self.r*sm.cos(self.beta)*B.x -
                    self.r*sm.sin(self.beta)*B.y)
         force_on_Aw = force_magnitude*self.Am.pos_from(Aw).normalize()
-        force_on_Bw = force_magnitude*self.Bm.pos_from(Bw).normalize()),
+        force_on_Bw = force_magnitude*self.Bm.pos_from(Bw).normalize()
         loads = [
             me.Force(self.Am, force_on_Aw),
-            me.Force(self.P, -(force_on_Aw + force_on_Bw),
+            me.Force(self.P, -(force_on_Aw + force_on_Bw)),
             me.Force(self.Bm, force_on_Bw),
         ]
         return loads
