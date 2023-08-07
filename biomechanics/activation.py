@@ -88,7 +88,7 @@ class ZerothOrderActivation(ActivationBase):
         return aux_data
 
     def __repr__(self):
-        return f'{self.__class__.__name__}({self.name})'
+        return f'{self.__class__.__name__}({self.name!r})'
 
 
 class FirstOrderActivationDeGroote2016(ActivationBase):
@@ -176,7 +176,7 @@ class FirstOrderActivationDeGroote2016(ActivationBase):
 
     def __repr__(self):
         return (
-            f'{self.__class__.__name__}({self.name}, '
-            f'activation_time_constant={self.tau_a}, '
-            f'deactivation_time_constant={self.tau_d})'
+            f'{self.__class__.__name__}({self.name!r}, '
+            f'activation_time_constant={self.tau_a!r}, '
+            f'deactivation_time_constant={self.tau_d!r})'
         )
