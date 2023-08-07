@@ -1,8 +1,19 @@
-import sympy as sm
+from sympy import (
+    Float,
+    Function,
+    Integer,
+    UnevaluatedExpr,
+    exp,
+    log,
+    sin,
+    sinh,
+    sqrt,
+)
+from sympy.core.function import ArgumentIndexError
 
 
 __all__ = [
-    'FiberFroceLengthActiveDeGroote2016',
+    'FiberForceLengthActiveDeGroote2016',
     'FiberForceLengthPassiveDeGroote2016',
     'FiberForceLengthPassiveInverseDeGroote2016',
     'FiberForceVelocityDeGroote2016',
@@ -12,7 +23,7 @@ __all__ = [
 ]
 
 
-class CharacteristicCurveFunction(sm.Function):
+class CharacteristicCurveFunction(Function):
 
     def _eval_evalf(self, prec):
         return self.doit(deep=False, evaluate=False)._eval_evalf(prec)
@@ -37,10 +48,10 @@ class TendonForceLengthDeGroote2016(CharacteristicCurveFunction):
 
     @classmethod
     def with_default_constants(cls, l_T_tilde):
-        c0 = sm.Float('0.2')
-        c1 = sm.Float('0.995')
-        c2 = sm.Float('0.25')
-        c3 = sm.Float('33.93669377311689')
+        c0 = Float('0.2')
+        c1 = Float('0.995')
+        c2 = Float('0.25')
+        c3 = Float('33.93669377311689')
         return cls(l_T_tilde, c0, c1, c2, c3)
 
     @classmethod
@@ -57,24 +68,24 @@ class TendonForceLengthDeGroote2016(CharacteristicCurveFunction):
             c0, c1, c2, c3 = constants
 
         if evaluate:
-            return c0 * sm.exp(c3 * (l_T_tilde - c1)) - c2
+            return c0 * exp(c3 * (l_T_tilde - c1)) - c2
 
-        return c0 * sm.exp(c3 * sm.UnevaluatedExpr(l_T_tilde - c1)) - c2
+        return c0 * exp(c3 * UnevaluatedExpr(l_T_tilde - c1)) - c2
 
     def fdiff(self, argindex=1):
         l_T_tilde, c0, c1, c2, c3 = self.args
         if argindex == 1:
-            return c0 * c3 * sm.exp(c3 * sm.UnevaluatedExpr(l_T_tilde - c1))
+            return c0 * c3 * exp(c3 * UnevaluatedExpr(l_T_tilde - c1))
         elif argindex == 2:
-            return sm.exp(c3 * sm.UnevaluatedExpr(l_T_tilde - c1))
+            return exp(c3 * UnevaluatedExpr(l_T_tilde - c1))
         elif argindex == 3:
-            return -c0 * c3 * sm.exp(c3 * sm.UnevaluatedExpr(l_T_tilde - c1))
+            return -c0 * c3 * exp(c3 * UnevaluatedExpr(l_T_tilde - c1))
         elif argindex == 4:
-            return sm.Integer(-1)
+            return Integer(-1)
         elif argindex == 5:
-            return c0 * (l_T_tilde - c1) * sm.exp(c3 * sm.UnevaluatedExpr(l_T_tilde - c1))
+            return c0 * (l_T_tilde - c1) * exp(c3 * UnevaluatedExpr(l_T_tilde - c1))
 
-        raise sm.ArgumentIndexError(self, argindex)
+        raise ArgumentIndexError(self, argindex)
 
     def inverse(self, argindex=1):
         return TendonForceLengthInverseDeGroote2016
@@ -84,10 +95,10 @@ class TendonForceLengthInverseDeGroote2016(CharacteristicCurveFunction):
 
     @classmethod
     def with_default_constants(cls, fl_T):
-        c0 = sm.Float('0.2')
-        c1 = sm.Float('0.995')
-        c2 = sm.Float('0.25')
-        c3 = sm.Float('33.93669377311689')
+        c0 = Float('0.2')
+        c1 = Float('0.995')
+        c2 = Float('0.25')
+        c3 = Float('33.93669377311689')
         return cls(fl_T, c0, c1, c2, c3)
 
     @classmethod
@@ -104,9 +115,9 @@ class TendonForceLengthInverseDeGroote2016(CharacteristicCurveFunction):
             c0, c1, c2, c3 = constants
 
         if evaluate:
-            return sm.log((fl_T + c2) / c0) / c3 + c1
+            return log((fl_T + c2) / c0) / c3 + c1
 
-        return sm.log(sm.UnevaluatedExpr((fl_T + c2) / c0)) / c3 + c1
+        return log(UnevaluatedExpr((fl_T + c2) / c0)) / c3 + c1
 
     def fdiff(self, argindex=1):
         fl_T, c0, c1, c2, c3 = self.args
@@ -115,13 +126,13 @@ class TendonForceLengthInverseDeGroote2016(CharacteristicCurveFunction):
         elif argindex == 2:
             return -1 / (c0 * c3)
         elif argindex == 3:
-            return sm.Integer(1)
+            return Integer(1)
         elif argindex == 4:
             return 1 / (c3 * (fl_T + c2))
         elif argindex == 5:
-            return -sm.log(sm.UnevaluatedExpr((fl_T + c2) / c0)) / c3**2
+            return -log(UnevaluatedExpr((fl_T + c2) / c0)) / c3**2
 
-        raise sm.ArgumentIndexError(self, argindex)
+        raise ArgumentIndexError(self, argindex)
 
     def inverse(self, argindex=1):
         return TendonForceLengthDeGroote2016
@@ -131,8 +142,8 @@ class FiberForceLengthPassiveDeGroote2016(CharacteristicCurveFunction):
 
     @classmethod
     def with_default_constants(cls, l_M_tilde):
-        c0 = sm.Float('0.6')
-        c1 = sm.Float('4.0')
+        c0 = Float('0.6')
+        c1 = Float('4.0')
         return cls(l_M_tilde, c0, c1)
 
     @classmethod
@@ -149,9 +160,9 @@ class FiberForceLengthPassiveDeGroote2016(CharacteristicCurveFunction):
             c0, c1 = constants
 
         if evaluate:
-            return (sm.exp((c1 * (l_M_tilde - 1)) / c0) - 1) / (sm.exp(c1) - 1)
+            return (exp((c1 * (l_M_tilde - 1)) / c0) - 1) / (exp(c1) - 1)
 
-        return (sm.exp((c1 * sm.UnevaluatedExpr(l_M_tilde - 1)) / c0) - 1) / (sm.exp(c1) - 1)
+        return (exp((c1 * UnevaluatedExpr(l_M_tilde - 1)) / c0) - 1) / (exp(c1) - 1)
 
     def fdiff(self, argindex=1):
         raise NotImplementedError
@@ -164,8 +175,8 @@ class FiberForceLengthPassiveInverseDeGroote2016(CharacteristicCurveFunction):
 
     @classmethod
     def with_default_constants(cls, fl_M_pas):
-        c0 = sm.Float('0.6')
-        c1 = sm.Float('4.0')
+        c0 = Float('0.6')
+        c1 = Float('4.0')
         return cls(fl_M_pas, c0, c1)
 
     @classmethod
@@ -181,7 +192,7 @@ class FiberForceLengthPassiveInverseDeGroote2016(CharacteristicCurveFunction):
         else:
             c0, c1 = constants
 
-        return (c0 * sm.log(((sm.exp(c1) - 1) * fl_M_pas) + 1) / c1) + 1
+        return (c0 * log(((exp(c1) - 1) * fl_M_pas) + 1) / c1) + 1
 
     def fdiff(self, argindex=1):
         raise NotImplementedError
@@ -190,7 +201,7 @@ class FiberForceLengthPassiveInverseDeGroote2016(CharacteristicCurveFunction):
         return FiberForceLengthPassiveDeGroote2016
 
 
-class FiberFroceLengthActiveDeGroote2016(CharacteristicCurveFunction):
+class FiberForceLengthActiveDeGroote2016(CharacteristicCurveFunction):
 
     @classmethod
     def with_default_constants(cls, l_M_tilde):
@@ -223,13 +234,13 @@ class FiberFroceLengthActiveDeGroote2016(CharacteristicCurveFunction):
 
         a0 = l_M_tilde - c1
         a1 = c2 + c3 * l_M_tilde
-        a2 = c0 * sm.exp(-0.5 * ((a0 * a0) / (a1 * a1)))
+        a2 = c0 * exp(-0.5 * ((a0 * a0) / (a1 * a1)))
         a3 = l_M_tilde - c5
         a4 = c6 + c7 * l_M_tilde
-        a5 = c4 * sm.exp(-0.5 * ((a3 * a3) / (a4 * a4)))
+        a5 = c4 * exp(-0.5 * ((a3 * a3) / (a4 * a4)))
         a6 = l_M_tilde - c9
         a7 = c10 + c11 * l_M_tilde
-        a8 = c8 * sm.exp(-0.5 * ((a6 * a6) / (a7 * a7)))
+        a8 = c8 * exp(-0.5 * ((a6 * a6) / (a7 * a7)))
         a9 = a2 + a5 + a8
         return a9
 
@@ -244,10 +255,10 @@ class FiberForceVelocityDeGroote2016(CharacteristicCurveFunction):
 
     @classmethod
     def with_default_constants(cls, v_M_tilde):
-        c0 = sm.Float('-0.318')
-        c1 = sm.Float('-8.149')
-        c2 = sm.Float('-0.374')
-        c3 = sm.Float('0.886')
+        c0 = Float('-0.318')
+        c1 = Float('-8.149')
+        c2 = Float('-0.374')
+        c3 = Float('0.886')
         return cls(v_M_tilde, c0, c1, c2, c3)
 
     @classmethod
@@ -264,8 +275,8 @@ class FiberForceVelocityDeGroote2016(CharacteristicCurveFunction):
             c0, c1, c2, c3 = constants
 
         a0 = c1 * v_M_tilde + c2
-        a1 = sm.sqrt(a0**2 + 1)
-        a2 =  c0 * sm.log(a0 + a1) + c3
+        a1 = sqrt(a0**2 + 1)
+        a2 =  c0 * log(a0 + a1) + c3
         return a2
 
     def fdiff(self, argindex=1):
@@ -279,10 +290,10 @@ class FiberForceVelocityInverseDeGroote2016(CharacteristicCurveFunction):
 
     @classmethod
     def with_default_constants(cls, fv_M):
-        c0 = sm.Float('-0.318')
-        c1 = sm.Float('-8.149')
-        c2 = sm.Float('-0.374')
-        c3 = sm.Float('0.886')
+        c0 = Float('-0.318')
+        c1 = Float('-8.149')
+        c2 = Float('-0.374')
+        c3 = Float('0.886')
         return cls(fv_M, c0, c1, c2, c3)
 
     @classmethod
@@ -298,7 +309,7 @@ class FiberForceVelocityInverseDeGroote2016(CharacteristicCurveFunction):
         else:
             c0, c1, c2, c3 = constants
 
-        return (sm.sinh((fv_M - c3) / c0) - c2) / c1
+        return (sinh((fv_M - c3) / c0) - c2) / c1
 
     def fdiff(self, argindex=1):
         raise NotImplementedError
