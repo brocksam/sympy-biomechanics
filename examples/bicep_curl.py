@@ -13,6 +13,11 @@ import sympy.physics.mechanics as me
 from sympy.physics.mechanics._actuator import LinearSpring, LinearDamper
 from sympy.physics.mechanics._pathway import LinearPathway, PathwayBase
 
+from biomechanics import (
+    FirstOrderActivationDeGroote2016,
+    MusculotendonDeGroote2016,
+)
+
 
 class TricepPathway(PathwayBase):
 
@@ -167,21 +172,45 @@ humerous = me.RigidBody('humerus', masscenter=Ao, frame=A, mass=mA,
 radius = me.RigidBody('radius', masscenter=Bo, frame=B, mass=mB,
                       inertia=(IB, Bo))
 
-muscle_pathway = LinearPathway(Am, Bm)
 # TODO : should be able to sum actuators that have the same pathway
-muscle_act1 = LinearSpring(k, muscle_pathway)
 # TODO : no easy way to set generalized speeds
-muscle_act2 = LinearDamper(c, muscle_pathway)
+bicep_pathway = LinearPathway(Am, Bm)
+bicep_activation = FirstOrderActivationDeGroote2016.with_default_constants('bicep')
+bicep = MusculotendonDeGroote2016('bicep', bicep_pathway, activation_dynamics=bicep_activation)
+bicep_constants = {
+    bicep._F_M_max: 200,
+    bicep._l_M_opt: 0.6,
+    bicep._l_T_slack: 0.55,
+    bicep._v_M_max: 10.0,
+    bicep._alpha_opt: 0,
+    bicep._beta: 0.1,
+}
 
-tricep_path = TricepPathway(A, B, Am, P, Bm, r, q2)
+tricep_pathway = TricepPathway(A, B, Am, P, Bm, r, q2)
+tricep_activation = FirstOrderActivationDeGroote2016.with_default_constants('tricep')
+tricep = MusculotendonDeGroote2016('tricep', tricep_pathway, activation_dynamics=tricep_activation)
+tricep_constants = {
+    tricep._F_M_max: 150,
+    tricep._l_M_opt: 0.6,
+    tricep._l_T_slack: 0.95,
+    tricep._v_M_max: 10.0,
+    tricep._alpha_opt: 0,
+    tricep._beta: 0.1,
+}
+musculotendon_constants = {**bicep_constants, **tricep_constants}
+mt = sm.Matrix(list(musculotendon_constants.keys()))
+
+a = list(bicep.activation_dynamics.state_variables) + list(tricep.activation_dynamics.state_variables)
+e = list(bicep.activation_dynamics.control_variables) + list(tricep.activation_dynamics.control_variables)
+da = list(bicep.activation_dynamics.state_equations.values()) + list(tricep.activation_dynamics.state_equations.values())
+eval_da = sm.lambdify((a, e), da, cse=True)
 
 gravA = me.Force(humerous, -mA*g*N.y)
 gravB = me.Force(radius, -mB*g*N.y)
 
 loads = (
-    muscle_act1.to_loads() +
-    muscle_act2.to_loads() +
-    tricep_path.compute_loads(-k*r*q2 - c*r*u2) +
+    bicep.to_loads() +
+    tricep.to_loads() +
     [gravA, gravB]
 )
 
@@ -196,13 +225,36 @@ kane = me.KanesMethod(
 
 Fr, Frs = kane.kanes_equations()
 
-
 Md = Frs.jacobian(ud)
 gd = Frs.xreplace(ud_zerod) + Fr
-eval_Mdgd = sm.lambdify((q, u, p), [Md, gd])
+eval_Mdgd = sm.lambdify((q, u, a, p, mt), [Md, gd], cse=True)
 
 
-def eval_rhs(t, x, p):
+def eval_excitation(t):
+    """Return the excitation of the bicep and tricep at a given time.
+
+    Bicep and tricep excitations are step functions. The bicep excites at a
+    level of 0.3 until time t=0.5s, then increases to 1.0. The tricep excites
+    at a level of 0.1 until time t=2.0s, then increases to 0.5.
+
+    Parameters
+    ==========
+    t : float
+        Time in seconds
+
+    Returns
+    =======
+    e : ndarray, shape(2,)
+        Excitation of the bicep and tricep at time t.
+
+    """
+    e_bicep = 0.3 if t < 0.5 else 1.0
+    e_tricep = 0.1 if t < 2.0 else 0.5
+    e = np.array([e_bicep, e_tricep])
+    return e
+
+
+def eval_rhs(t, x, p, mt):
     """Return the right hand side of the explicit ordinary differential
     equations which evaluates the time derivative of the state ``x`` at time
     ``t``.
@@ -211,24 +263,34 @@ def eval_rhs(t, x, p):
     ==========
     t : float
        Time in seconds.
-    x : array_like, shape(4,)
-       State at time t: [q1, q2, u1, u2]
+    x : array_like, shape(6,)
+       State at time t: [q1, q2, u1, u2, a_bicep, a_tricep]
     p : array_like, shape(10,)
        Constant parameters: [lA, lB, mA, mB, g, iAz, iBz, k, c, r]
+    mt : array_like, shape(12,)
+        Musculotendon constant parameters: [F_M_max_bicep, l_M_opt_bicep,
+        l_T_slack_bicep, v_M_max_bicep, alpha_opt_bicep, beta_bicep,
+        F_M_max_tricep, l_M_opt_tricep, l_T_slack_tricep, v_M_max_tricep,
+        alpha_opt_tricep, beta_tricep]
 
     Returns
     =======
-    xd : ndarray, shape(4,)
+    xd : ndarray, shape(6,)
         Derivative of the state with respect to time at time ``t``.
 
     """
 
-    # unpack the q and u vectors from x
+    # unpack the q, u, and a vectors from x
     q = x[:2]
-    qd = x[2:]
+    qd = x[2:4]
+    a = x[4:]
 
-    # evaluate the equations of motion matrices with the values of q, u, p
-    Md, gd = eval_Mdgd(q, qd, p)
+    # evaluate the equations of motion matrices with the values of q, u, p, mt
+    Md, gd = eval_Mdgd(q, qd, a, p, mt)
+
+    # evaluate the activation dynamics with the values of a, e
+    e = eval_excitation(t)
+    da = eval_da(a, e)
 
     # solve for u'
     ud = np.linalg.solve(-Md, np.squeeze(gd))
@@ -236,7 +298,8 @@ def eval_rhs(t, x, p):
     # pack dq/dt and du/dt into a new state time derivative vector dx/dt
     xd = np.empty_like(x)
     xd[:2] = qd
-    xd[2:] = ud
+    xd[2:4] = ud
+    xd[4:] = da
 
     return xd
 
@@ -249,9 +312,9 @@ def plot_results(ts, xs):
     ==========
     ts : array_like, shape(m,)
        Values of time.
-    xs : array_like, shape(m, 4)
+    xs : array_like, shape(m, 6)
        Values of the state trajectories corresponding to ``ts`` in order
-       [q1, q2, u1, u2].
+       [q1, q2, u1, u2, a_bicep, a_tricep].
 
     Returns
     =======
@@ -260,18 +323,20 @@ def plot_results(ts, xs):
 
     """
 
-    fig, axes = plt.subplots(2, 1, sharex=True)
+    fig, axes = plt.subplots(3, 1, sharex=True)
 
     fig.set_size_inches((10.0, 6.0))
 
     axes[0].plot(ts, np.rad2deg(xs[:, :2]))
-    axes[1].plot(ts, xs[:, 2])
+    axes[1].plot(ts, xs[:, 2:4])
+    axes[2].plot(ts, xs[:, 4:])
 
     axes[0].legend([me.vlatex(q[0], mode='inline')])
     axes[1].legend([me.vlatex(q[1], mode='inline')])
 
     axes[0].set_ylabel('Angle [deg]')
     axes[1].set_ylabel('Angular Rate [deg/s]')
+    axes[2].set_ylabel('Activation [.]')
 
     axes[-1].set_xlabel('Time [s]')
 
@@ -290,6 +355,11 @@ u_vals = np.array([
     0.0,  # u2, rad/s
 ])
 
+a_vals = np.array([
+    0.5,  # a_bicep, nondimensional
+    0.5,  # a_tricep, nondimensional
+])
+
 #p = sm.Matrix([lA, lB, mA, mB, g, iAz, iBz, k, c, r])
 p_vals = np.array([
     30.0,  # lA, m
@@ -304,12 +374,17 @@ p_vals = np.array([
     2.0,  # r, m
 ])
 
+#mt = sm.Matrix([F_M_max_bicep, l_M_opt_bicep, l_T_slack_bicep,
+#                v_M_max_bicep, alpha_opt_bicep, beta_bicep,
+#                F_M_max_tricep, l_M_opt_tricep, l_T_slack_tricep,
+#                v_M_max_tricep, alpha_opt_tricep, beta_tricep])
+mt_vals = np.array(list(musculotendon_constants.values()))
 
 t0, tf, fps = 0.0, 3.0, 30
 ts = np.linspace(t0, tf, num=int(fps*(tf - t0)))
-x0 = np.hstack((q_vals, u_vals))
+x0 = np.hstack((q_vals, u_vals, a_vals))
 
-result = solve_ivp(eval_rhs, (t0, tf), x0, args=(p_vals,), t_eval=ts)
+result = solve_ivp(eval_rhs, (t0, tf), x0, args=(p_vals, mt_vals), t_eval=ts)
 plot_results(result.t, np.transpose(result.y))
 
 plt.show()
