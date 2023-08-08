@@ -5,6 +5,9 @@ Similar to the Opensim example:
 https://github.com/opensim-org/opensim-core/tree/v4.0.0_beta#simple-example
 
 """
+import numpy as np
+from scipy.integrate import solve_ivp
+import matplotlib.pyplot as plt
 import sympy as sm
 import sympy.physics.mechanics as me
 from sympy.physics.mechanics._actuator import LinearSpring, LinearDamper
@@ -102,6 +105,7 @@ class TricepPathway(PathwayBase):
 q1, q2 = me.dynamicsymbols('q1, q2')
 u1, u2 = me.dynamicsymbols('u1, u2')
 
+
 # lA : length of humerus (upper arm)
 # lB : length of radius (lower arm)
 # mA : mass of upper arm
@@ -112,7 +116,14 @@ u1, u2 = me.dynamicsymbols('u1, u2')
 # k : linear spring coefficient
 # c : linear damper coefficient
 lA, lB, mA, mB, g, iAz, iBz = sm.symbols('lA, lB, mA, mB, g, iAz, iBz')
-k, c, r= sm.symbols('k, c, r')
+k, c, r = sm.symbols('k, c, r')
+
+# pack things up
+q = sm.Matrix([q1, q2])
+u = sm.Matrix([u1, u2])
+ud = u.diff(me.dynamicsymbols._t)
+ud_zerod = {udi: 0 for udi in ud}
+p = sm.Matrix([lA, lB, mA, mB, g, iAz, iBz, k, c, r])
 
 # N : inertial
 # A : humerous
@@ -167,8 +178,12 @@ tricep_path = TricepPathway(A, B, Am, P, Bm, r, q2)
 gravA = me.Force(humerous, -mA*g*N.y)
 gravB = me.Force(radius, -mB*g*N.y)
 
-# TODO : should gravA and gravB have a to_loads() method?
-loads = muscle_act1.to_loads() + muscle_act2.to_loads() + [gravA, gravB]
+loads = (
+    muscle_act1.to_loads() +
+    muscle_act2.to_loads() +
+    tricep_path.compute_loads(-k*r*q2 - c*r*u2) +
+    [gravA, gravB]
+)
 
 kane = me.KanesMethod(
     N,
@@ -180,3 +195,121 @@ kane = me.KanesMethod(
 )
 
 Fr, Frs = kane.kanes_equations()
+
+
+Md = Frs.jacobian(ud)
+gd = Frs.xreplace(ud_zerod) + Fr
+eval_Mdgd = sm.lambdify((q, u, p), [Md, gd])
+
+
+def eval_rhs(t, x, p):
+    """Return the right hand side of the explicit ordinary differential
+    equations which evaluates the time derivative of the state ``x`` at time
+    ``t``.
+
+    Parameters
+    ==========
+    t : float
+       Time in seconds.
+    x : array_like, shape(4,)
+       State at time t: [q1, q2, u1, u2]
+    p : array_like, shape(10,)
+       Constant parameters: [lA, lB, mA, mB, g, iAz, iBz, k, c, r]
+
+    Returns
+    =======
+    xd : ndarray, shape(4,)
+        Derivative of the state with respect to time at time ``t``.
+
+    """
+
+    # unpack the q and u vectors from x
+    q = x[:2]
+    qd = x[2:]
+
+    # evaluate the equations of motion matrices with the values of q, u, p
+    Md, gd = eval_Mdgd(q, qd, p)
+
+    # solve for u'
+    ud = np.linalg.solve(-Md, np.squeeze(gd))
+
+    # pack dq/dt and du/dt into a new state time derivative vector dx/dt
+    xd = np.empty_like(x)
+    xd[:2] = qd
+    xd[2:] = ud
+
+    return xd
+
+
+def plot_results(ts, xs):
+    """Returns the array of axes of a 4 panel plot of the state trajectory
+    versus time.
+
+    Parameters
+    ==========
+    ts : array_like, shape(m,)
+       Values of time.
+    xs : array_like, shape(m, 4)
+       Values of the state trajectories corresponding to ``ts`` in order
+       [q1, q2, u1, u2].
+
+    Returns
+    =======
+    axes : ndarray, shape(4,)
+       Matplotlib axes for each panel.
+
+    """
+
+    fig, axes = plt.subplots(2, 1, sharex=True)
+
+    fig.set_size_inches((10.0, 6.0))
+
+    axes[0].plot(ts, np.rad2deg(xs[:, :2]))
+    axes[1].plot(ts, xs[:, 2])
+
+    axes[0].legend([me.vlatex(q[0], mode='inline')])
+    axes[1].legend([me.vlatex(q[1], mode='inline')])
+
+    axes[0].set_ylabel('Angle [deg]')
+    axes[1].set_ylabel('Angular Rate [deg/s]')
+
+    axes[-1].set_xlabel('Time [s]')
+
+    fig.tight_layout()
+
+    return axes
+
+
+q_vals = np.array([
+    np.deg2rad(0.0),  # q1, rad
+    np.deg2rad(4.0),  # q2, rad
+])
+
+u_vals = np.array([
+    0.0,  # u1, rad/s
+    0.0,  # u2, rad/s
+])
+
+#p = sm.Matrix([lA, lB, mA, mB, g, iAz, iBz, k, c, r])
+p_vals = np.array([
+    30.0,  # lA, m
+    30.0,  # lB, m
+    2.0,  # mA, kg
+    1.0,  # mB, kg
+    9.81,  # g, m/s**2
+    2.0/12.0*30.0**2,  # iAz, kg*m**2
+    1.0/12.0*30.0**2,  # iAz, kg*m**2
+    20.0,  # k, N/m
+    0.1,  # c, Nms
+    2.0,  # r, m
+])
+
+
+t0, tf, fps = 0.0, 3.0, 30
+ts = np.linspace(t0, tf, num=int(fps*(tf - t0)))
+x0 = np.hstack((q_vals, u_vals))
+
+result = solve_ivp(eval_rhs, (t0, tf), x0, args=(p_vals,), t_eval=ts)
+plot_results(result.t, np.transpose(result.y))
+
+plt.show()
