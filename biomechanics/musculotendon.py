@@ -51,39 +51,82 @@ class MusculotendonDeGroote2016(ForceActuator, _NamedMixin):
         self.activation_dynamics = activation_dynamics
 
         # Constants
-        if tendon_slack_length is not None:
-            self._l_T_slack = tendon_slack_length
-        else:
-            self._l_T_slack = Symbol(f"l_T_slack_{self.name}")
-
-        if peak_isometric_force is not None:
-            self._F_M_max = peak_isometric_force
-        else:
-            self._F_M_max = Symbol(f"F_M_max_{self.name}")
-
-        if optimal_fiber_length is not None:
-            self._l_M_opt = optimal_fiber_length
-        else:
-            self._l_M_opt = Symbol(f"l_M_opt_{self.name}")
-
-        if maximal_fiber_velocity is not None:
-            self._v_M_max = maximal_fiber_velocity
-        else:
-            self._v_M_max = Symbol(f"v_M_max_{self.name}")
-
-        if optimal_pennation_angle is not None:
-            self._alpha_opt = optimal_pennation_angle
-        else:
-            self._alpha_opt = Symbol(f"alpha_opt_{self.name}")
-
-        if fiber_damping_coefficient is not None:
-            self._beta = fiber_damping_coefficient
-        else:
-            self._beta = Symbol(f"beta_{self.name}")
+        self.tendon_slack_length = tendon_slack_length
+        self.peak_isometric_force = peak_isometric_force
+        self.optimal_fiber_length = optimal_fiber_length
+        self.maximal_fiber_velocity = maximal_fiber_velocity
+        self.optimal_pennation_angle = optimal_pennation_angle
+        self.fiber_damping_coefficient = fiber_damping_coefficient
 
         # Musculotendon dynamics
         self.musculotendon_dynamics = musculotendon_dynamics
         self._force = self._F_T
+
+    @property
+    def tendon_slack_length(self):
+        return self._l_T_slack
+
+    @tendon_slack_length.setter
+    def tendon_slack_length(self, l_T_slack):
+        if l_T_slack is not None:
+            self._l_T_slack = l_T_slack
+        else:
+            self._l_T_slack = Symbol(f'l_T_slack_{self.name}')
+
+    @property
+    def peak_isometric_force(self):
+        return self._F_M_max
+
+    @peak_isometric_force.setter
+    def peak_isometric_force(self, F_M_max):
+        if F_M_max is not None:
+            self._F_M_max = F_M_max
+        else:
+            self._F_M_max = Symbol(f'F_M_max_{self.name}')
+
+    @property
+    def optimal_fiber_length(self):
+        return self._l_M_opt
+
+    @optimal_fiber_length.setter
+    def optimal_fiber_length(self, l_M_opt):
+        if l_M_opt is not None:
+            self._l_M_opt = l_M_opt
+        else:
+            self._l_M_opt = Symbol(f'l_M_opt_{self.name}')
+
+    @property
+    def maximal_fiber_velocity(self):
+        return self._v_M_max
+
+    @maximal_fiber_velocity.setter
+    def maximal_fiber_velocity(self, v_M_max):
+        if v_M_max is not None:
+            self._v_M_max = v_M_max
+        else:
+            self._v_M_max = Symbol(f'v_M_max_{self.name}')
+
+    @property
+    def optimal_pennation_angle(self):
+        return self._alpha_opt
+
+    @optimal_pennation_angle.setter
+    def optimal_pennation_angle(self, alpha_opt):
+        if alpha_opt is not None:
+            self._alpha_opt = alpha_opt
+        else:
+            self._alpha_opt = Symbol(f'alpha_opt_{self.name}')
+
+    @property
+    def fiber_damping_coefficient(self):
+        return self._beta
+
+    @fiber_damping_coefficient.setter
+    def fiber_damping_coefficient(self, beta):
+        if beta is not None:
+            self._beta = beta
+        else:
+            self._beta = Symbol(f'beta_{self.name}')
 
     @property
     def state_variables(self):
