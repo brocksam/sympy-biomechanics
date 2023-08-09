@@ -2,6 +2,7 @@ import numpy as np
 from scikits.odes import dae
 from scipy.optimize import fsolve
 import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
 import sympy as sm
 import sympy.physics.mechanics as me
 from sympy.physics.mechanics._pathway import LinearPathway
@@ -158,7 +159,7 @@ kane = me.KanesMethod(
 Fr, Frs = kane.kanes_equations()
 
 p_vals = np.array([
-    -0.4,  # dx [m]
+    -0.3,  # dx [m]
     0.15,  # dy [m]
     -0.4,  # dz [m]
     0.2,   # lA [m]
@@ -202,8 +203,8 @@ for point in [P1, P4, Do, Dm, P3, Cm, Co, P2]:
     coordinates = coordinates.row_join(point.pos_from(O).to_matrix(mpl_frame))
 eval_point_coords = sm.lambdify((q, p), coordinates, cse=True)
 
-#plot_config(*eval_point_coords(q_vals, p_vals))
-#plt.show()
+plot_data = plot_config(*eval_point_coords(q_vals, p_vals))
+fig, lines_top, lines_3d, lines_front, lines_right = plot_data
 
 ud = sm.Matrix([u1d, u2d, u3d, u4d])
 # TODO : If you use ud.diff() instead of replacing and using ud and use
@@ -262,8 +263,21 @@ print(resid)
 ts = np.linspace(0.0, 1.0, num=101)
 solution = solver.solve(ts, x0, xd0)
 
-ts_dae = solution.values.t
-xs_dae = solution.values.y
+ts = solution.values.t
+xs = solution.values.y
 
-plt.plot(ts_dae, xs_dae)
+
+def animate(i):
+    x, y, z = eval_point_coords(xs[i, :4], p_vals)
+    lines_top.set_data(x, y)
+    lines_3d.set_data_3d(x, y, z)
+    lines_front.set_data(y, z)
+    lines_right.set_data(x, z)
+
+
+ani = FuncAnimation(fig, animate, len(ts))
+
+#plt.figure()
+#plt.plot(ts, xs)
+
 plt.show()
