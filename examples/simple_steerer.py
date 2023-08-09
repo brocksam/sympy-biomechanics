@@ -169,10 +169,10 @@ p_vals = np.array([
 ])
 
 q_vals = np.array([
-    np.rad2deg(0.0),  # q1 [rad]
-    np.rad2deg(-3.0),  # q2 [rad]
-    np.rad2deg(0.0),  # q3 [rad]
-    np.rad2deg(75.0),  # q4 [rad]
+    np.deg2rad(10.0),  # q1 [rad]
+    np.deg2rad(-10.0),  # q2 [rad]
+    np.deg2rad(0.0),  # q3 [rad]
+    np.deg2rad(75.0),  # q4 [rad]
 ])
 
 eval_holonomic = sm.lambdify((q, p), holonomic)
@@ -188,9 +188,11 @@ u_vals = np.array([
     0.0,
 ])
 
-coordinates = O.pos_from(O).to_matrix(N)
+mpl_frame = me.ReferenceFrame('M')
+mpl_frame.orient_body_fixed(N, (sm.pi/2, sm.pi, 0), 'ZXZ')
+coordinates = O.pos_from(O).to_matrix(mpl_frame)
 for point in [P1, P4, Do, Dm, P3, Cm, Co, P2]:
-   coordinates = coordinates.row_join(point.pos_from(O).to_matrix(N))
+    coordinates = coordinates.row_join(point.pos_from(O).to_matrix(mpl_frame))
 eval_point_coords = sm.lambdify((q, p), coordinates)
 
 plot_config(*eval_point_coords(q_vals, p_vals))
