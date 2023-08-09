@@ -1,10 +1,12 @@
 import numpy as np
 from scipy.integrate import solve_ivp
+from scipy.optimize import fsolve
 import matplotlib.pyplot as plt
 import sympy as sm
 import sympy.physics.mechanics as me
-#from sympy.physics.mechanics._actuator import LinearSpring, LinearDamper
-#from sympy.physics.mechanics._pathway import LinearPathway, PathwayBase
+from sympy.physics.mechanics._pathway import LinearPathway, PathwayBase
+
+from reusable import TricepPathway, plot_config
 
 # q1 : steer angle
 # q2 : shoulder extension
@@ -118,14 +120,77 @@ radius = me.RigidBody('radius',
                       mass=mD,
                       inertia=(ID, Do))
 
+steer_resistance = me.Torque(A, (-kA*q1 + cA*u2)*N.z)
+muscle_pathway = LinearPathway(Cm, Dm)
+tricep_path = TricepPathway(C, D, Cm, P3, Dm, r, q4)
+
+gravA = me.Force(humerous, mC*g*N.z)
+gravB = me.Force(radius, mD*g*N.z)
+
+loads = (
+    muscle_pathway.compute_loads(0) +
+    tricep_path.compute_loads(0) +
+    [steer_resistance, gravA, gravB]
+)
+
 kane = me.KanesMethod(
     N,
     (q1,),
     (u1, u2, u3, u4),
-    kd_eqs=(u1 - q1.diff(), u2 - q2.diff(), u3 - q3.diff(), u4 - q4.diff()),
+    kd_eqs=(
+        u1 - q1.diff(),
+        u2 - q2.diff(),
+        u3 - q3.diff(),
+        u4 - q4.diff(),
+    ),
     q_dependent=(q2, q3, q4),
     configuration_constraints=holonomic,
     bodies=(steer, humerous, radius),
+    forcelist=loads,
 )
 
 Fr, Frs = kane.kanes_equations()
+
+p_vals = np.array([
+    -0.4, # dx [m]
+    0.15, # dy [m]
+    -0.4, # dz [m]
+    0.2,  # lA [m]
+    0.3, # lC [m]
+    0.3, # lD [m]
+    1.0, # mA [kg]
+    2.3, # mC [kg]
+    1.7, # mD [kg]
+    9.81, # g [m/s/s]
+    5.0, # kA [N/m]
+    0.3, # cA [Nms]
+])
+
+q_vals = np.array([
+    np.rad2deg(2.0),  # q1 [rad]
+    np.rad2deg(-3.0),  # q2 [rad]
+    np.rad2deg(0.0),  # q3 [rad]
+    np.rad2deg(75.0),  # q4 [rad]
+])
+
+eval_holonomic = sm.lambdify((q, p), holonomic)
+q_sol = fsolve(lambda x: eval_holonomic((q_vals[0], x[0], x[1], x[2]), p_vals).squeeze(), q_vals[1:])
+q_vals[1], q_vals[2], q_vals[3] = q_sol[0], q_sol[1], q_sol[2]
+
+print(np.rad2deg(q_vals))
+
+u_vals = np.array([
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+])
+
+coordinates = P1.pos_from(O).to_matrix(N)
+for point in [P2, Co, Cm, P3, Dm, Do, P4]:
+   coordinates = coordinates.row_join(point.pos_from(O).to_matrix(N))
+eval_point_coords = sm.lambdify((q, p), coordinates)
+
+plot_config(*eval_point_coords(q_vals, p_vals))
+
+plt.show()
