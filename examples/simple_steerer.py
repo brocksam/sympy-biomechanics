@@ -1,14 +1,13 @@
 import numpy as np
-from scipy.integrate import solve_ivp
+from scikits.odes import dae
 from scipy.optimize import fsolve
 import matplotlib.pyplot as plt
 import sympy as sm
 import sympy.physics.mechanics as me
-from sympy.physics.mechanics._pathway import LinearPathway, PathwayBase
+from sympy.physics.mechanics._pathway import LinearPathway
 
 from biomechanics.pathway import ExtensorPathway
 from biomechanics.plot import plot_config
-
 
 # q1 : steer angle
 # q2 : shoulder extension
@@ -17,6 +16,7 @@ from biomechanics.plot import plot_config
 # q1' = u1, q2' = u2, q3' = u3, q4' = u4
 q1, q2, q3, q4 = me.dynamicsymbols('q1, q2, q3, q4')
 u1, u2, u3, u4 = me.dynamicsymbols('u1, u2, u3, u4')
+u1d, u2d, u3d, u4d = me.dynamicsymbols('u1d, u2d, u3d, u4d')
 
 # dx, dy, dz: locates P2 from O along the N unit vector directions
 # lA : handlebar halfwidth
@@ -122,23 +122,25 @@ radius = me.RigidBody('radius',
                       mass=mD,
                       inertia=(ID, Do))
 
-steer_resistance = me.Torque(A, (-kA*q1 + cA*u2)*N.z)
-muscle_pathway = LinearPathway(Cm, Dm)
+steer_resistance = me.Torque(A, (-kA*q1 - cA*u2)*N.z)
+bicep_path = LinearPathway(Cm, Dm)
 tricep_path = ExtensorPathway(C.y, P3, -C.z, D.z, Cm, Dm, r, q4)
 
 gravA = me.Force(humerous, mC*g*N.z)
 gravB = me.Force(radius, mD*g*N.z)
 
 loads = (
-    muscle_pathway.compute_loads(0) +
+    bicep_path.compute_loads(0) +
     tricep_path.compute_loads(0) +
     [steer_resistance, gravA, gravB]
 )
 
+t = me.dynamicsymbols._t
+
 kane = me.KanesMethod(
     N,
     (q1,),
-    (u1, u2, u3, u4),
+    (u1,),
     kd_eqs=(
         u1 - q1.diff(),
         u2 - q2.diff(),
@@ -147,6 +149,8 @@ kane = me.KanesMethod(
     ),
     q_dependent=(q2, q3, q4),
     configuration_constraints=holonomic,
+    velocity_constraints=holonomic.diff(t),
+    u_dependent=(u2, u3, u4),
     bodies=(steer, humerous, radius),
     forcelist=loads,
 )
@@ -154,29 +158,32 @@ kane = me.KanesMethod(
 Fr, Frs = kane.kanes_equations()
 
 p_vals = np.array([
-    -0.4, # dx [m]
-    0.15, # dy [m]
-    -0.4, # dz [m]
-    0.2,  # lA [m]
-    0.3, # lC [m]
-    0.3, # lD [m]
-    1.0, # mA [kg]
-    2.3, # mC [kg]
-    1.7, # mD [kg]
-    9.81, # g [m/s/s]
-    5.0, # kA [N/m]
-    0.3, # cA [Nms]
+    -0.4,  # dx [m]
+    0.15,  # dy [m]
+    -0.4,  # dz [m]
+    0.2,   # lA [m]
+    0.3,  # lC [m]
+    0.3,  # lD [m]
+    1.0,  # mA [kg]
+    2.3,  # mC [kg]
+    1.7,  # mD [kg]
+    9.81,  # g [m/s/s]
+    10.0,  # kA [Nm/rad]
+    0.1,  # cA [Nms/rad]
 ])
 
+# start with some initial guess for the configuration and choose q1 as
+# independent
 q_vals = np.array([
-    np.deg2rad(10.0),  # q1 [rad]
+    np.deg2rad(2.0),  # q1 [rad]
     np.deg2rad(-10.0),  # q2 [rad]
     np.deg2rad(0.0),  # q3 [rad]
     np.deg2rad(75.0),  # q4 [rad]
 ])
 
-eval_holonomic = sm.lambdify((q, p), holonomic)
+eval_holonomic = sm.lambdify((q, p), holonomic, cse=True)
 q_sol = fsolve(lambda x: eval_holonomic((q_vals[0], x[0], x[1], x[2]), p_vals).squeeze(), q_vals[1:])
+# update all q_vals with constraint consistent values
 q_vals[1], q_vals[2], q_vals[3] = q_sol[0], q_sol[1], q_sol[2]
 
 print(np.rad2deg(q_vals))
@@ -193,8 +200,70 @@ mpl_frame.orient_body_fixed(N, (sm.pi/2, sm.pi, 0), 'ZXZ')
 coordinates = O.pos_from(O).to_matrix(mpl_frame)
 for point in [P1, P4, Do, Dm, P3, Cm, Co, P2]:
     coordinates = coordinates.row_join(point.pos_from(O).to_matrix(mpl_frame))
-eval_point_coords = sm.lambdify((q, p), coordinates)
+eval_point_coords = sm.lambdify((q, p), coordinates, cse=True)
 
-plot_config(*eval_point_coords(q_vals, p_vals))
+#plot_config(*eval_point_coords(q_vals, p_vals))
+#plt.show()
 
+ud = sm.Matrix([u1d, u2d, u3d, u4d])
+# TODO : If you use ud.diff() instead of replacing and using ud and use
+# cse=True, lambdify fails (but not with cse=False), report to sympy.
+eval_kane = sm.lambdify((ud, u, q, p), (Fr + Frs).xreplace(dict(zip(u.diff(), ud))), cse=True)
+t = me.dynamicsymbols._t
+vel_con = holonomic.diff(t).xreplace(dict(zip(q.diff(), u)))
+Mh = vel_con.jacobian([u2, u3, u4])
+gh = vel_con.xreplace({u2: 0, u3: 0, u4: 0})
+eval_Mhgh = sm.lambdify((u1, q, p), (Mh, gh), cse=True)
+eval_Mdgd = sm.lambdify((u, q, p), (kane.mass_matrix, kane.forcing), cse=True)
+
+
+def eval_eom(t, x, xd, residual, p):
+    """Returns the residual vector of the equations of motion.
+
+    Parameters
+    ==========
+    t : float
+       Time at evaluation.
+    x : ndarray, shape(4,)
+       State vector at time t: x = [q1, q2, q3, q4, u1, u2, u3, u4].
+    xd : ndarray, shape(4,)
+       Time derivative of the state vector at time t:
+       xd = [q1d, q2d, q3d, q4d, u1d, u2d, u3d, u4d].
+    residual : ndarray, shape(4,)
+       Vector to store the residuals in: residuals = [fk, fd, fh1, fh2, fh3].
+    p : ndarray, shape(6,)
+       Constant parameters: p = []
+
+    """
+    q = x[0:4]
+    u = x[4:8]
+    qd = xd[0:4]
+    ud = xd[4:8]
+    residual[0:4] = u - qd
+    residual[4] = eval_kane(ud, u, q, p).squeeze()  # only eq for independent u
+    residual[5:] = eval_holonomic(q, p).squeeze()
+
+
+
+solver = dae('ida',
+             eval_eom,
+             rtol=1e-5,
+             atol=1e-5,
+             algebraic_vars_idx=[5, 6, 7],
+             user_data=p_vals,
+             old_api=False)
+
+x0 = np.hstack((q_vals, u_vals))
+ud0 = np.linalg.solve(*eval_Mdgd(u_vals, q_vals, p_vals)).squeeze()
+xd0 = np.hstack((u_vals, ud0))
+resid = np.empty(8)
+eval_eom(0.1, x0, xd0, resid, p_vals)
+print(resid)
+ts = np.linspace(0.0, 1.0, num=101)
+solution = solver.solve(ts, x0, xd0)
+
+ts_dae = solution.values.t
+xs_dae = solution.values.y
+
+plt.plot(ts_dae, xs_dae)
 plt.show()
