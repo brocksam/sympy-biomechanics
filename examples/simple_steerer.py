@@ -6,7 +6,9 @@ import sympy as sm
 import sympy.physics.mechanics as me
 from sympy.physics.mechanics._pathway import LinearPathway, PathwayBase
 
-from reusable import TricepPathway, plot_config
+from biomechanics.pathway import ExtensorPathway
+from biomechanics.plot import plot_config
+
 
 # q1 : steer angle
 # q2 : shoulder extension
@@ -122,7 +124,7 @@ radius = me.RigidBody('radius',
 
 steer_resistance = me.Torque(A, (-kA*q1 + cA*u2)*N.z)
 muscle_pathway = LinearPathway(Cm, Dm)
-tricep_path = TricepPathway(C, D, Cm, P3, Dm, r, q4)
+tricep_path = ExtensorPathway(C.y, P3, -C.z, D.z, Cm, Dm, r, q4)
 
 gravA = me.Force(humerous, mC*g*N.z)
 gravB = me.Force(radius, mD*g*N.z)
@@ -167,7 +169,7 @@ p_vals = np.array([
 ])
 
 q_vals = np.array([
-    np.rad2deg(2.0),  # q1 [rad]
+    np.rad2deg(0.0),  # q1 [rad]
     np.rad2deg(-3.0),  # q2 [rad]
     np.rad2deg(0.0),  # q3 [rad]
     np.rad2deg(75.0),  # q4 [rad]
@@ -186,8 +188,8 @@ u_vals = np.array([
     0.0,
 ])
 
-coordinates = P1.pos_from(O).to_matrix(N)
-for point in [P2, Co, Cm, P3, Dm, Do, P4]:
+coordinates = O.pos_from(O).to_matrix(N)
+for point in [P1, P4, Do, Dm, P3, Cm, Co, P2]:
    coordinates = coordinates.row_join(point.pos_from(O).to_matrix(N))
 eval_point_coords = sm.lambdify((q, p), coordinates)
 
