@@ -6,3 +6,4 @@ from .musculotendon import (
     MusculotendonDeGroote2016,
     MusculotendonDynamics,
 )
+from .pathway import ExtensorPathway
