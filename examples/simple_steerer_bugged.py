@@ -5,13 +5,7 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import sympy as sm
 import sympy.physics.mechanics as me
-from sympy.physics.mechanics._pathway import LinearPathway
 
-from biomechanics import (
-    ExtensorPathway,
-    FirstOrderActivationDeGroote2016,
-    MusculotendonDeGroote2016,
-)
 from biomechanics.plot import plot_config
 
 # q1 : steer angle
