@@ -45,6 +45,10 @@ def setup_symbolics():
     E = ReferenceFrame('E')
     # Front Wheel Frame
     F = ReferenceFrame('F')
+    # Right Upper Arm
+    G = ReferenceFrame('G')
+    # Right Lower Arm
+    H = ReferenceFrame('H')
 
     ####################################
     # Generalized Coordinates and Speeds
@@ -67,14 +71,18 @@ def setup_symbolics():
     #     point in the ground plane
     # q10: perpendicular distance from the n1> axis to the front contact
     #     point in the ground plane
+    # q11,q12: right shoulder angles
+    # q13: elbow angle
 
     print('Defining time varying symbols.')
 
     q1, q2, q3, q4 = mec.dynamicsymbols('q1 q2 q3 q4')
     q5, q6, q7, q8 = mec.dynamicsymbols('q5 q6 q7 q8')
+    q11, q12, q13 = mec.dynamicsymbols('q11, q12, q13')
 
     u1, u2, u3, u4 = mec.dynamicsymbols('u1 u2 u3 u4')
     u5, u6, u7, u8 = mec.dynamicsymbols('u5 u6 u7 u8')
+    u11, u12, u13 = mec.dynamicsymbols('u11, u12, u13')
 
     #################################
     # Orientation of Reference Frames
@@ -95,6 +103,10 @@ def setup_symbolics():
     C.orient(B, 'Axis', (q5, B['2']))
     # front frame steer
     E.orient(C, 'Axis', (q7, C['3']))
+    # upper arm
+    G.orient_body_fixed(C, (q11, q12, 0), '232')
+    # lower arm
+    H.orient_axis(G, q13, G['2'])
 
     ###########
     # Constants
@@ -118,16 +130,20 @@ def setup_symbolics():
     #     the center of mass of the fork
     # l4: the distance in the e3> direction from the front wheel center to
     #     the center of mass of the fork
-
+    # d4, d5, d6: locates right shoulder from rear wheel center
+    # d7 : length of upper arm
+    # d8 : length of lower arm
+    # d9, d10, d11 : locates right handgrip from front wheel center
     rf, rr = sm.symbols('rf, rr')
-    d1, d2, d3 = sm.symbols('d1, d2, d3')
+    d1, d2, d3, d4, d5, d6 = sm.symbols('d1, d2, d3, d4, d5, d6')
+    d7, d8, d9, d10, d11 = sm.symbols('d7, d8, d9, d10, d11')
     l1, l2, l3, l4 = sm.symbols('l1, l2, l3, l4')
 
     # acceleration due to gravity
     g = sm.symbols('g')
 
     # mass
-    mc, md, me, mf = sm.symbols('mc, md, me, mf')
+    mc, md, me, mf, mg, mh = sm.symbols('mc, md, me, mf, mg, mh')
 
     # inertia components
     ic11, ic22, ic33, ic31 = sm.symbols('ic11, ic22, ic33, ic31')
@@ -166,9 +182,41 @@ def setup_symbolics():
     ce = mec.Point('ce')
     ce.set_pos(do, d1*C['1'])
 
+    # rear wheel center to right shoulder
+    cg = mec.Point('cg')
+    cg.set_pos(do, d4*C['1'] + d5*C['2'] + d6*C['3'])
+
+    # right shoulder to elbow
+    gh = mec.Point('gh')
+    gh.set_pos(cg, d7*G['3'])
+
+    # right shoulder to upper arm mass center
+    go = mec.Point('go')
+    go.set_pos(cg, d7/2*G['3'])
+
+    # right shoulder to upper arm muscle attachment
+    gm = mec.Point('gm')
+    gm.set_pos(cg, 2*d7/3*G['3'])
+
+    # right elbow to lower arm muscle atachment
+    hm = mec.Point('hm')
+    hm.set_pos(gh, d8/3*H['3'])
+
+    # right elbow to lower arm mass center
+    ho = mec.Point('ho')
+    ho.set_pos(gh, d8/2*H['3'])
+
+    # elbow to hand
+    hc = mec.Point('hc')
+    hc.set_pos(gh, d8*H['3'])
+
     # steer axis point to the front wheel center
     fo = mec.Point('fo')
     fo.set_pos(ce, d2*E['3'] + d3*E['1'])
+
+    # front wheel center to handgrip
+    ch = mec.Point('ch')
+    ch.set_pos(fo, d9*E['1'] + d10*E['2'] + d11*E['3'])
 
     # front wheel center to front frame center
     eo = mec.Point('eo')
@@ -185,7 +233,9 @@ def setup_symbolics():
     print('Defining holonomic constraints.')
 
     # this constraint is enforced so that the front wheel contacts the ground
-    holonomic = fn.pos_from(dn).dot(A['3'])
+    holonomic_wheel = sm.Matrix([fn.pos_from(dn).dot(A['3'])])
+    holonomic_hand = (hc.pos_from(co) - ch.pos_from(co)).to_matrix(C)
+    holonomic = holonomic_wheel.col_join(holonomic_hand)
 
     print('The holonomic constraint is a function of these dynamic variables:')
     print(list(sm.ordered(mec.find_dynamicsymbols(holonomic))))
@@ -196,10 +246,15 @@ def setup_symbolics():
 
     print('Defining kinematical differential equations.')
 
-    kinematical = [q3.diff(t) - u3,  # yaw
-                   q4.diff(t) - u4,  # roll
-                   q5.diff(t) - u5,  # pitch
-                   q7.diff(t) - u7]  # steer
+    kinematical = [
+        q3.diff(t) - u3,  # yaw
+        q4.diff(t) - u4,  # roll
+        q5.diff(t) - u5,  # pitch
+        q7.diff(t) - u7,  # steer
+        q11.diff(t) - u11,  # shoulder extension
+        q12.diff(t) - u12,  # shoulder rotation
+        q13.diff(t) - u13,  # elbow extension
+    ]
 
     ####################
     # Angular Velocities
@@ -216,6 +271,8 @@ def setup_symbolics():
     D.set_ang_vel(C, u6*C['2'])  # rear wheel rate
     E.set_ang_vel(C, u7*C['3'])  # steer rate
     F.set_ang_vel(E, u8*E['2'])  # front wheel rate
+    G.set_ang_vel(C, u11*C['2'] + u12*G['3'])
+    H.set_ang_vel(G, u13*G['2'])
 
     ###################
     # Linear Velocities
@@ -233,6 +290,14 @@ def setup_symbolics():
     ce.v2pt_theory(do, N, C)
     fo.v2pt_theory(ce, N, E)
     eo.v2pt_theory(fo, N, E)
+    go.v2pt_theory(cg, N, G)
+    ho.v2pt_theory(gh, N, H)
+
+    # arm & handlebar joints
+    cg.v2pt_theory(co, N, C)
+    gh.v2pt_theory(cg, N, G)
+    hc.v2pt_theory(gh, N, H)
+    ch.v2pt_theory(fo, N, F)
 
     # front wheel contact velocity
     fn.v2pt_theory(fo, N, F)
@@ -247,15 +312,11 @@ def setup_symbolics():
         fn.vel(N).dot(A['1']),
         fn.vel(N).dot(A['3']),
         fn.vel(N).dot(A['2']),
+        holonomic_hand[0].diff(t),
+        holonomic_hand[1].diff(t),
+        holonomic_hand[2].diff(t),
     ]
 
-    # TODO : Move this out of the setup function.
-    nh1 = fn.vel(N).dot(A['3'])
-    nh2 = holonomic.diff(t).subs(sm.solve(kinematical, [q3.diff(t),
-                                                        q4.diff(t),
-                                                        q5.diff(t),
-                                                        q7.diff(t)],
-                                          dict=True)[0])
     print('The nonholonomic constraints are a function of these dynamic variables:')
     print(list(sm.ordered(mec.find_dynamicsymbols(sm.Matrix(nonholonomic)))))
 
@@ -277,6 +338,8 @@ def setup_symbolics():
     Id = mec.inertia(C, id11, id22, id11, 0.0, 0.0, 0.0)
     Ie = mec.inertia(E, ie11, ie22, ie33, 0.0, 0.0, ie31)
     If = mec.inertia(E, if11, if22, if11, 0.0, 0.0, 0.0)
+    Ig = mec.inertia(G, mg/12*d7**2, mg/12*d7**2, mg/2*(d7/10)**2)
+    Ih = mec.inertia(H, mh/12*d8**2, mh/12*d8**2, mh/2*(d8/10)**2)
 
     ##############
     # Rigid Bodies
@@ -288,8 +351,11 @@ def setup_symbolics():
     rear_wheel = mec.RigidBody('Rear Wheel', do, D, md, (Id, do))
     front_frame = mec.RigidBody('Front Frame', eo, E, me, (Ie, eo))
     front_wheel = mec.RigidBody('Front Wheel', fo, F, mf, (If, fo))
+    upper_arm = mec.RigidBody('Upper Arm', go, G, mg, (Ig, go))
+    lower_arm = mec.RigidBody('Lower Arm', ho, H, mh, (Ih, ho))
 
-    bodies = [rear_frame, rear_wheel, front_frame, front_wheel]
+    bodies = [rear_frame, rear_wheel, front_frame, front_wheel, upper_arm,
+              lower_arm]
 
     ###########################
     # Generalized Active Forces
@@ -302,17 +368,20 @@ def setup_symbolics():
     Fdo = (do, md*g*A['3'])
     Feo = (eo, me*g*A['3'])
     Ffo = (fo, mf*g*A['3'])
+    Fgo = (go, mg*g*A['3'])
+    Fho = (ho, mh*g*A['3'])
 
     # input torques
     Tc = (C, T4*A['1'] - T6*B['2'] - T7*C['3'])
     Td = (D, T6*C['2'])
     Te = (E, T7*C['3'])
 
-    forces = [Fco, Fdo, Feo, Ffo, Tc, Td, Te]
+    forces = [Fco, Fdo, Feo, Ffo, Fgo, Fho, Tc, Td, Te]
 
     # Manually compute the ground contact velocities.
     kindiffdict = sm.solve(kinematical, [q3.diff(t), q4.diff(t), q5.diff(t),
-                                         q7.diff(t)], dict=True)[0]
+                                         q7.diff(t), q11.diff(t), q12.diff(t),
+                                         q13.diff(t)], dict=True)[0]
     u1_def = -rr*(u5 + u6)*sm.cos(q3)
     u1p_def = u1_def.diff(t).xreplace(kindiffdict)
     u2_def = -rr*(u5 + u6)*sm.sin(q3)
@@ -324,16 +393,17 @@ def setup_symbolics():
 
     newto = N
     q_ind = (q3, q4, q7)  # yaw, roll, steer
-    q_dep = (q5,)  # pitch
+    q_dep = (q5, q11, q12, q13)  # pitch
     # NOTE : I think q3 is an ignorable coordinate too.
     # rear contact 1 dist, rear contact 2 dist, rear wheel angle, front wheel angle
     q_ign = (q1, q2, q6, q8)
     u_ind = (u4, u6, u7)  # roll rate, rear wheel rate, steer rate
-    u_dep = (u3, u5, u8)  # yaw rate, pitch rate, front wheel rate
-    const = (d1, d2, d3, g, ic11, ic22, ic31, ic33, id11, id22, ie11, ie22,
-             ie31, ie33, if11, if22, l1, l2, l3, l4, mc, md, me, mf, rf, rr)
+    u_dep = (u3, u5, u8, u11, u12, u13)  # yaw rate, pitch rate, front wheel rate
+    const = (d1, d2, d3, d4, d5, d6, d7, d8, g, ic11, ic22, ic31, ic33, id11,
+             id22, ie11, ie22, ie31, ie33, if11, if22, l1, l2, l3, l4, mc, md,
+             me, mf, mg, mh, rf, rr)
     speci = (T4, T6, T7)
-    holon = [holonomic]
+    holon = holonomic
     nonho = tuple(nonholonomic)
     us = tuple(sm.ordered((u1, u2) + u_ind + u_dep))
     qs = tuple(sm.ordered(q_ign + q_ind + q_dep))
