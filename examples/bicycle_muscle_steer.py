@@ -1,6 +1,12 @@
 import numpy as np
+from scikits.odes import dae
+from scipy.optimize import fsolve
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
 import sympy as sm
 import sympy.physics.mechanics as mec
+
+from biomechanics.plot import plot_config
 
 
 class ReferenceFrame(mec.ReferenceFrame):
@@ -258,11 +264,11 @@ def setup_symbolics():
 
     # front wheel center to right handgrip
     ch_r = mec.Point('chr')
-    ch_r.set_pos(fo, d9*E['1'] + d10*E['2'] + d11*E['3'])
+    ch_r.set_pos(ce, d9*E['1'] + d10*E['2'] + d11*E['3'])
 
     # front wheel center to left handgrip
     ch_l = mec.Point('chl')
-    ch_l.set_pos(fo, d9*E['1'] - d10*E['2'] + d11*E['3'])
+    ch_l.set_pos(ce, d9*E['1'] - d10*E['2'] + d11*E['3'])
 
     # front wheel center to front frame center
     eo = mec.Point('eo')
@@ -468,20 +474,46 @@ def setup_symbolics():
     q_ign = (q1, q2, q6, q8)
     u_ind = (u4, u6, u7)  # roll rate, rear wheel rate, steer rate
     u_dep = (u3, u5, u8, u11, u12, u13, u14, u15, u16)  # yaw rate, pitch rate, front wheel rate
-    const = (d1, d2, d3, d4, d5, d6, d7, d8, g, ic11, ic22, ic31, ic33, id11,
-             id22, ie11, ie22, ie31, ie33, if11, if22, l1, l2, l3, l4, mc, md,
-             me, mf, mg, mh, mi, mj, rf, rr)
+    const = (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, g, ic11, ic22, ic31,
+             ic33, id11, id22, ie11, ie22, ie31, ie33, if11, if22, l1, l2, l3,
+             l4, mc, md, me, mf, mg, mh, mi, mj, rf, rr)
     speci = (T4, T6, T7)
     holon = holonomic
     nonho = tuple(nonholonomic)
     us = tuple(sm.ordered((u1, u2) + u_ind + u_dep))
-    qs = tuple(sm.ordered(q_ign + q_ind + q_dep))
+    qs = (q3, q4, q5, q6, q7, q8, q11, q12, q13, q14, q15, q16)
     # TODO : Reduced these to work with formulate_equations_motion().
     spdef = {ui: qi.diff(t) for ui, qi in zip((u3, u4, u5, u7),
                                               (q3, q4, q5, q7))}
     exdef = {u1: u1_def, u2: u2_def, u1.diff(t): u1p_def, u2.diff(t): u2p_def}
 
+    points = (
+        dn,  # rear contact
+        do,  # rear wheel center
+        cgr,  # right shoulder
+        go,
+        gm,
+        gh,  # right elbow
+        hm,
+        ho,
+        hc,  # right hand
+        ch_r,
+        ch_l,
+        jc,  # left hand
+        jo,
+        jm,
+        ji,
+        im,
+        io,
+        cgl,
+        do,  # rear wheel center
+        ce,  # steer axis
+        fo,  # front wheel center
+        fn,
+    )
+
     system_symbolics = {
+        'points': points,
         'bodies': tuple(bodies),
         'constants': const,
         'dependent generalized coordinates': q_dep,
@@ -521,7 +553,197 @@ kane = mec.KanesMethod(
     q_dependent=symbolics['dependent generalized coordinates'],
     configuration_constraints=symbolics['holonomic constraints'],
     u_dependent=symbolics['dependent generalized speeds'],
-    velocity_constraints=symbolics['nonholonomic constraints']
+    velocity_constraints=symbolics['nonholonomic constraints'],
+    constraint_solver='CRAMER',
 )
 
-kane.kanes_equations(symbolics['bodies'], loads=symbolics['loads'])
+Fr, Frs = kane.kanes_equations(symbolics['bodies'], loads=symbolics['loads'])
+
+p_vals = np.array([
+    0.9534570696121849,  # d1
+    0.2676445084476887,  # d2
+    0.03207142672761929,  # d3
+    0.8,  # d4
+    0.2,  # d5, shoulder half width
+    -1.0,  # d6
+    0.3,  # d7, upper arm length
+    0.35,  # d8, lower arm length
+    0.06,  # d9
+    0.2,  # d10
+    -0.5,  # d11
+    9.81,  # g
+    7.178169776497895,  # ic11
+    11.0,  # ic22
+    3.8225535938357873,  # ic31
+    4.821830223502103,  # ic33
+    0.0603,  # id11
+    0.12,  # id22
+    0.05841337700152972,  # ie11
+    0.06,  # ie22
+    0.009119225261946298,  # ie31
+    0.007586622998470264,  # ie33
+    0.1405,  # if11
+    0.28,  # if22
+    0.4707271515135145,  # l1
+    -0.47792881146460797,  # l2
+    -0.00597083392418685,  # l3
+    -0.3699518200282974,  # l4
+    85.0,  # mc
+    2.0,  # md
+    4.0,  # me
+    3.0,  # mf
+    2.3,  # mg
+    1.7,  # mh
+    2.3,  # mi
+    1.7,  # mj
+    0.35,  # rf
+    0.3,  # rr
+])
+
+
+# start with some initial guess for the configuration and choose q1 as
+# independent
+q_vals = np.array([
+    np.deg2rad(0.0),  # 0: q3 [rad]
+    np.deg2rad(0.0),  # 1: q4 [rad]
+    np.deg2rad(np.pi/10.0),  # 2: q5 [rad]
+    np.deg2rad(0.0),  # 3: q6 [rad]
+    np.deg2rad(0.0),  # 4: q7 [rad]
+    np.deg2rad(0.0),  # 5: q8 [rad]
+    np.deg2rad(10.0),  # 6: q11 [rad]
+    np.deg2rad(0.0),  # 7: q12 [rad]
+    np.deg2rad(30.0),  # 8: q13 [rad]
+    np.deg2rad(10.0),  # 9: q14 [rad]
+    np.deg2rad(0.0),  # 10: q15 [rad]
+    np.deg2rad(30.0),  # 11: q16 [rad]
+])
+
+q = symbolics['generalized coordinates']
+p = symbolics['constants']
+eval_holonomic = sm.lambdify((q, p), symbolics['holonomic constraints'], cse=True)
+# x = [q5, q11, ..., q16]
+knw_idxs = [0, 1, 3, 4, 5]
+unk_idxs = [2, 6, 7, 8, 9, 10, 11]
+print(eval_holonomic(q_vals, p_vals))
+q_sol = fsolve(lambda x: eval_holonomic((
+    q_vals[0],
+    q_vals[1],
+    x[0],
+    q_vals[3],
+    q_vals[4],
+    q_vals[5],
+    x[1],
+    x[2],
+    x[3],
+    x[4],
+    x[5],
+    x[6]), p_vals).squeeze(), q_vals[unk_idxs])
+# update all q_vals with constraint consistent values
+q_vals[unk_idxs] = q_sol
+
+print(np.rad2deg(q_vals))
+
+u_vals = np.array([
+    0.0,  # u3
+    0.0,  # u4
+    0.0,  # u5
+    0.0,  # u6
+    0.0,  # u7
+    0.0,  # u8
+    0.0,  # u11
+    0.0,  # u12
+    0.0,  # u13
+    0.0,  # u14
+    0.0,  # u15
+    0.0,  # u16
+])
+
+N = symbolics['newtonian reference frame']
+points = symbolics['points']
+mpl_frame = mec.ReferenceFrame('M')
+mpl_frame.orient_body_fixed(N, (sm.pi/2, sm.pi, 0), 'ZXZ')
+coordinates = points[0].pos_from(points[0]).to_matrix(mpl_frame)
+for point in points[1:]:
+    coordinates = coordinates.row_join(point.pos_from(points[0]).to_matrix(mpl_frame))
+eval_point_coords = sm.lambdify((q, p), coordinates, cse=True)
+
+plot_data = plot_config(*eval_point_coords(q_vals, p_vals))
+fig, lines_top, lines_3d, lines_front, lines_right = plot_data
+
+plt.show()
+
+ud = sm.Matrix([u1d, u2d, u3d, u4d])
+# TODO : If you use ud.diff() instead of replacing and using ud and use
+# cse=True, lambdify fails (but not with cse=False), report to sympy.
+eval_kane = sm.lambdify((ud, u, q, p), (Fr + Frs).xreplace(dict(zip(u.diff(), ud))), cse=True)
+t = me.dynamicsymbols._t
+vel_con = holonomic.diff(t).xreplace(dict(zip(q.diff(), u)))
+Mh = vel_con.jacobian([u2, u3, u4])
+gh = vel_con.xreplace({u2: 0, u3: 0, u4: 0})
+eval_Mhgh = sm.lambdify((u1, q, p), (Mh, gh), cse=True)
+eval_Mdgd = sm.lambdify((u, q, p), (kane.mass_matrix, kane.forcing), cse=True)
+
+
+def eval_eom(t, x, xd, residual, p):
+    """Returns the residual vector of the equations of motion.
+
+    Parameters
+    ==========
+    t : float
+       Time at evaluation.
+    x : ndarray, shape(4,)
+       State vector at time t: x = [q1, q2, q3, q4, u1, u2, u3, u4].
+    xd : ndarray, shape(4,)
+       Time derivative of the state vector at time t:
+       xd = [q1d, q2d, q3d, q4d, u1d, u2d, u3d, u4d].
+    residual : ndarray, shape(4,)
+       Vector to store the residuals in: residuals = [fk, fd, fh1, fh2, fh3].
+    p : ndarray, shape(6,)
+       Constant parameters: p = []
+
+    """
+    q = x[0:4]
+    u = x[4:8]
+    qd = xd[0:4]
+    ud = xd[4:8]
+    residual[0:4] = u - qd
+    residual[4] = eval_kane(ud, u, q, p).squeeze()  # only eq for independent u
+    residual[5:] = eval_holonomic(q, p).squeeze()
+
+
+
+solver = dae('ida',
+             eval_eom,
+             rtol=1e-5,
+             atol=1e-5,
+             algebraic_vars_idx=[5, 6, 7],
+             user_data=p_vals,
+             old_api=False)
+
+x0 = np.hstack((q_vals, u_vals))
+ud0 = np.linalg.solve(*eval_Mdgd(u_vals, q_vals, p_vals)).squeeze()
+xd0 = np.hstack((u_vals, ud0))
+resid = np.empty(8)
+eval_eom(0.1, x0, xd0, resid, p_vals)
+print(resid)
+ts = np.linspace(0.0, 1.0, num=101)
+solution = solver.solve(ts, x0, xd0)
+
+ts = solution.values.t
+xs = solution.values.y
+
+
+def animate(i):
+    x, y, z = eval_point_coords(xs[i, :4], p_vals)
+    lines_top.set_data(x, y)
+    lines_3d.set_data_3d(x, y, z)
+    lines_front.set_data(y, z)
+    lines_right.set_data(x, z)
+
+
+ani = FuncAnimation(fig, animate, len(ts))
+
+#plt.figure()
+#plt.plot(ts, xs)
+
+plt.show()
