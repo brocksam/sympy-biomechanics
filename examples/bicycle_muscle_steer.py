@@ -692,12 +692,16 @@ def eval_eom(t, x, xd, residual, p):
     qd = xd[0:12]
     ud = xd[12:24]
     residual[0:12] = u - qd
-    residual[12:15] = eval_kane(ud, u, q, r_vals, p).squeeze()  # only eq for independent u
+    roll_rate = u[1]
+    r = [-100.0*roll_rate, 0.0, 0.0]  # postive roll rate feedback to drive steer torque
+    #r = r_vals
+    residual[12:15] = eval_kane(ud, u, q, r, p).squeeze()  # only eq for independent u
     residual[15:22] = eval_holonomic(q, p).squeeze()  # shape(7,)
     residual[22:24] = eval_nonholonomic(u, q, p).squeeze()[[0, 2]]  # shape(2,)
 
 
 x0 = np.hstack((q_vals, u_vals))
+r_vals[0] = -100.0*u_vals[1]
 ud0_ = np.linalg.solve(*eval_Mdgd(u_vals, q_vals, r_vals, p_vals)).squeeze()
 # fix order
 ud0 = np.array([ud0_[3], ud0_[0], ud0_[4], ud0_[1], ud0_[2], ud0_[5], ud0_[6],
