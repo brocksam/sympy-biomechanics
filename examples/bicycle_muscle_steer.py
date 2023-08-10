@@ -94,6 +94,11 @@ u5, u6, u7, u8 = mec.dynamicsymbols('u5 u6 u7 u8')
 u11, u12, u13 = mec.dynamicsymbols('u11, u12, u13')
 u14, u15, u16 = mec.dynamicsymbols('u14, u15, u16')
 
+u1d, u2d, u3d, u4d = mec.dynamicsymbols('u1d u2d u3d u4d')
+u5d, u6d, u7d, u8d = mec.dynamicsymbols('u5d u6d u7d u8d')
+u11d, u12d, u13d = mec.dynamicsymbols('u11d, u12d, u13d')
+u14d, u15d, u16d = mec.dynamicsymbols('u14d, u15d, u16d')
+
 #################################
 # Orientation of Reference Frames
 #################################
@@ -369,7 +374,7 @@ fn.v2pt_theory(fo, N, F)
 
 print('Defining nonholonomic constraints.')
 
-nonholonomic = [
+nonholonomic = sm.Matrix([
     fn.vel(N).dot(A['1']),
     fn.vel(N).dot(A['3']),
     fn.vel(N).dot(A['2']),
@@ -379,7 +384,8 @@ nonholonomic = [
     holonomic_handl[0].diff(t),
     holonomic_handl[1].diff(t),
     holonomic_handl[2].diff(t),
-]
+])
+
 
 print('The nonholonomic constraints are a function of these dynamic variables:')
 print(list(sm.ordered(mec.find_dynamicsymbols(sm.Matrix(nonholonomic)))))
@@ -453,6 +459,7 @@ kindiffdict = sm.solve(kinematical, [q3.diff(t), q4.diff(t), q5.diff(t),
                                      q7.diff(t), q11.diff(t), q12.diff(t),
                                      q13.diff(t), q14.diff(t), q15.diff(t),
                                      q16.diff(t)], dict=True)[0]
+nonholonomic = nonholonomic.xreplace(kindiffdict)
 u1_def = -rr*(u5 + u6)*sm.cos(q3)
 u1p_def = u1_def.diff(t).xreplace(kindiffdict)
 u2_def = -rr*(u5 + u6)*sm.sin(q3)
@@ -469,12 +476,12 @@ q_dep = (q5, q11, q12, q13, q14, q15, q16)  # pitch
 q_ign = (q1, q2, q6, q8)
 u_ind = (u4, u6, u7)  # roll rate, rear wheel rate, steer rate
 u_dep = (u3, u5, u8, u11, u12, u13, u14, u15, u16)  # yaw rate, pitch rate, front wheel rate
-p = (d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, g, ic11, ic22, ic31, ic33,
-     id11, id22, ie11, ie22, ie31, ie33, if11, if22, l1, l2, l3, l4, mc, md,
-     me, mf, mg, mh, mi, mj, rf, rr)
-r = (T4, T6, T7)
-u = (u3, u4, u5, u6, u7, u8, u11, u12, u13, u14, u15, u16)
-q = (q3, q4, q5, q6, q7, q8, q11, q12, q13, q14, q15, q16)
+p = sm.Matrix([d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, g, ic11, ic22,
+               ic31, ic33, id11, id22, ie11, ie22, ie31, ie33, if11, if22, l1,
+               l2, l3, l4, mc, md, me, mf, mg, mh, mi, mj, rf, rr])
+r = sm.Matrix([T4, T6, T7])
+u = sm.Matrix([u3, u4, u5, u6, u7, u8, u11, u12, u13, u14, u15, u16])
+q = sm.Matrix([q3, q4, q5, q6, q7, q8, q11, q12, q13, q14, q15, q16])
 
 points = (
     dn,  # rear contact
@@ -581,6 +588,7 @@ q_vals = np.array([
 ])
 
 eval_holonomic = sm.lambdify((q, p), holonomic, cse=True)
+eval_nonholonomic = sm.lambdify((u, q, p), nonholonomic, cse=True)
 # x = [q5, q11, ..., q16]
 knw_idxs = [0, 1, 3, 4, 5]
 unk_idxs = [2, 6, 7, 8, 9, 10, 11]
@@ -601,21 +609,45 @@ q_sol = fsolve(lambda x: eval_holonomic((
 # update all q_vals with constraint consistent values
 q_vals[unk_idxs] = q_sol
 
+print('Initial coordinates')
 print(np.rad2deg(q_vals))
 
+speed = 5.0  # m/s
+
+# TODO : solve nonholonomic to populate these
 u_vals = np.array([
     0.0,  # u3
-    0.0,  # u4
+    0.5,  # u4
     0.0,  # u5
-    0.0,  # u6
+    -speed/p_vals[-1],  # u6
     0.0,  # u7
-    0.0,  # u8
+    -speed/p_vals[-2],  # u8
     0.0,  # u11
     0.0,  # u12
     0.0,  # u13
     0.0,  # u14
     0.0,  # u15
     0.0,  # u16
+])
+
+k_idxs = [1, 3, 4]
+u_idxs = [0, 2, 5, 6, 7, 8, 9, 10, 11]
+u_sol = fsolve(lambda x: eval_nonholonomic((
+    x[0],
+    u_vals[1],
+    x[1],
+    u_vals[3],
+    u_vals[4],
+    x[2], x[3], x[4], x[5], x[6], x[7], x[8]),
+    q_vals, p_vals).squeeze(), u_vals[u_idxs])
+u_vals[u_idxs] = u_sol
+print('Initial speeds')
+print(u_vals)
+
+r_vals = np.array([
+    0.0,
+    0.0,
+    0.0,
 ])
 
 mpl_frame = mec.ReferenceFrame('M')
@@ -625,15 +657,15 @@ for point in points[1:]:
     coordinates = coordinates.row_join(point.pos_from(points[0]).to_matrix(mpl_frame))
 eval_point_coords = sm.lambdify((q, p), coordinates, cse=True)
 
-plot_data = plot_config(*eval_point_coords(q_vals, p_vals))
+plot_data = plot_config(*eval_point_coords(q_vals, p_vals),
+                        xlim=(-0.75, 0.75), ylim=(0.0, 1.5), zlim=(0, 1.5))
 fig, lines_top, lines_3d, lines_front, lines_right = plot_data
-plt.show()
 
-ud = sm.Matrix([u3d, u4d, u4d, u5d, u6d, u7d, u8d, u11d, u12d, u13d, u14d, u15d, u16d])
+ud = sm.Matrix([u3d, u4d, u5d, u6d, u7d, u8d, u11d, u12d, u13d, u14d, u15d, u16d])
 # TODO : If you use ud.diff() instead of replacing and using ud and use
 # cse=True, lambdify fails (but not with cse=False), report to sympy.
-eval_kane = sm.lambdify((ud, u, q, p), (Fr + Frs).xreplace(dict(zip(u.diff(), ud))), cse=True)
-eval_Mdgd = sm.lambdify((u, q, p), (kane.mass_matrix, kane.forcing), cse=True)
+eval_kane = sm.lambdify((ud, u, q, r, p), (Fr + Frs).xreplace(dict(zip(u.diff(), ud))), cse=True)
+eval_Mdgd = sm.lambdify((u, q, r, p), (kane.mass_matrix, kane.forcing), cse=True)
 
 
 def eval_eom(t, x, xd, residual, p):
@@ -643,42 +675,51 @@ def eval_eom(t, x, xd, residual, p):
     ==========
     t : float
        Time at evaluation.
-    x : ndarray, shape(4,)
-       State vector at time t: x = [q1, q2, q3, q4, u1, u2, u3, u4].
-    xd : ndarray, shape(4,)
-       Time derivative of the state vector at time t:
-       xd = [q1d, q2d, q3d, q4d, u1d, u2d, u3d, u4d].
-    residual : ndarray, shape(4,)
-       Vector to store the residuals in: residuals = [fk, fd, fh1, fh2, fh3].
-    p : ndarray, shape(6,)
+    x : ndarray, shape(24,)
+       State vector at time t: x =
+       [q3, q4, q5, q6, q7, q8, q11, q12, q13, q14, q15, q16,
+        u3, u4, u5, u6, u7, u8, u11, u12, u13, u14, u15, u16]
+    xd : ndarray, shape(24,)
+       Time derivative of the state vector at time t.
+    residual : ndarray, shape(24,)
+       Vector to store the residuals in: residuals = [fk, fd, fh, fnh].
+    p : ndarray, shape(38,)
        Constant parameters: p = []
 
     """
-    q = x[0:4]
-    u = x[4:8]
-    qd = xd[0:4]
-    ud = xd[4:8]
-    residual[0:4] = u - qd
-    residual[4] = eval_kane(ud, u, q, p).squeeze()  # only eq for independent u
-    residual[5:] = eval_holonomic(q, p).squeeze()
+    q = x[0:12]
+    u = x[12:24]
+    qd = xd[0:12]
+    ud = xd[12:24]
+    residual[0:12] = u - qd
+    residual[12:15] = eval_kane(ud, u, q, r_vals, p).squeeze()  # only eq for independent u
+    residual[15:22] = eval_holonomic(q, p).squeeze()  # shape(7,)
+    residual[22:24] = eval_nonholonomic(u, q, p).squeeze()[[0, 2]]  # shape(2,)
 
-
-
-solver = dae('ida',
-             eval_eom,
-             rtol=1e-5,
-             atol=1e-5,
-             algebraic_vars_idx=[5, 6, 7],
-             user_data=p_vals,
-             old_api=False)
 
 x0 = np.hstack((q_vals, u_vals))
-ud0 = np.linalg.solve(*eval_Mdgd(u_vals, q_vals, p_vals)).squeeze()
+ud0_ = np.linalg.solve(*eval_Mdgd(u_vals, q_vals, r_vals, p_vals)).squeeze()
+# fix order
+ud0 = np.array([ud0_[3], ud0_[0], ud0_[4], ud0_[1], ud0_[2], ud0_[5], ud0_[6],
+                ud0_[7], ud0_[8], ud0_[9], ud0_[10], ud0_[11]])
 xd0 = np.hstack((u_vals, ud0))
-resid = np.empty(8)
+resid = np.empty(24)
 eval_eom(0.1, x0, xd0, resid, p_vals)
+print('Initial residuals')
 print(resid)
-ts = np.linspace(0.0, 1.0, num=101)
+ts = np.linspace(0.0, 10.0, num=1001)
+
+# options here: https://github.com/bmcage/odes/blob/1e3b3324748f4665ee5a52ed1a6e0b7e6c05be7d/scikits/odes/sundials/ida.pyx#L848
+solver = dae('ida',
+             eval_eom,
+             first_step_size=0.01,
+             rtol=1e-8,
+             atol=1e-6,
+             algebraic_vars_idx=[15, 16, 17, 18, 19, 20, 21, 22, 23],
+             user_data=p_vals,
+             old_api=False,
+             )
+
 solution = solver.solve(ts, x0, xd0)
 
 ts = solution.values.t
@@ -686,7 +727,7 @@ xs = solution.values.y
 
 
 def animate(i):
-    x, y, z = eval_point_coords(xs[i, :4], p_vals)
+    x, y, z = eval_point_coords(xs[i, :12], p_vals)
     lines_top.set_data(x, y)
     lines_3d.set_data_3d(x, y, z)
     lines_front.set_data(y, z)
@@ -695,7 +736,7 @@ def animate(i):
 
 ani = FuncAnimation(fig, animate, len(ts))
 
-#plt.figure()
-#plt.plot(ts, xs)
+plt.figure()
+plt.plot(ts, xs)
 
 plt.show()
