@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 
 
-def plot_config(x, y, z):
+def plot_config(x, y, z, xlim=(-0.5, 0.5), ylim=(-0.5, 0.5), zlim=(-0.5, 0.5)):
 
     # create a figure
     fig = plt.figure()
@@ -23,8 +23,8 @@ def plot_config(x, y, z):
 
     # top view
     lines_top, = ax_top.plot(x, y, **line_prop)
-    ax_top.set_xlim((-0.5, 0.5))
-    ax_top.set_ylim((-0.5, 0.5))
+    ax_top.set_xlim(xlim)
+    ax_top.set_ylim(ylim)
     ax_top.set_title('Top View')
     ax_top.set_xlabel('x')
     ax_top.set_ylabel('y')
@@ -32,17 +32,17 @@ def plot_config(x, y, z):
 
     # 3d view
     lines_3d, = ax_3d.plot(x, y, z, **line_prop)
-    ax_3d.set_xlim((-0.5, 0.5))
-    ax_3d.set_ylim((-0.5, 0.5))
-    ax_3d.set_zlim((-0.5, 0.5))
+    ax_3d.set_xlim(xlim)
+    ax_3d.set_ylim(ylim)
+    ax_3d.set_zlim(zlim)
     ax_3d.set_xlabel('x')
     ax_3d.set_ylabel('y')
     ax_3d.set_zlabel('z')
 
     # front view
     lines_front, = ax_front.plot(y, z, **line_prop)
-    ax_front.set_xlim((-0.5, 0.5))
-    ax_front.set_ylim((-0.5, 0.5))
+    ax_front.set_xlim(ylim)
+    ax_front.set_ylim(zlim)
     ax_front.set_title('Front View')
     ax_front.set_xlabel('y')
     ax_front.set_ylabel('z')
@@ -50,8 +50,8 @@ def plot_config(x, y, z):
 
     # right view
     lines_right, = ax_right.plot(x, z, **line_prop)
-    ax_right.set_xlim((-0.5, 0.5))
-    ax_right.set_ylim((-0.5, 0.5))
+    ax_right.set_xlim(xlim)
+    ax_right.set_ylim(zlim)
     ax_right.set_title('Right View')
     ax_right.set_xlabel('x')
     ax_right.set_ylabel('z')
