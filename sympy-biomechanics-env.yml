@@ -1,0 +1,16 @@
+# conda env create -f sympy-biomechanics-env.yml
+# conda activate sympy-biomechanics
+# conda develop .
+# cd /path/to/sympy/dev/repo/
+# conda develop .
+name: sympy-biomechanics
+channels:
+  - conda-forge
+dependencies:
+  - ipython
+  - matplotlib
+  - mpmath
+  - numpy
+  - python
+  - scikits.odes
+  - scipy
