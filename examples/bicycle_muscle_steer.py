@@ -614,7 +614,6 @@ print(np.rad2deg(q_vals))
 
 speed = 5.0  # m/s
 
-# TODO : solve nonholonomic to populate these
 u_vals = np.array([
     0.0,  # u3
     0.5,  # u4
@@ -651,21 +650,25 @@ r_vals = np.array([
 ])
 
 mpl_frame = mec.ReferenceFrame('M')
-mpl_frame.orient_body_fixed(N, (sm.pi/2, sm.pi, 0), 'ZXZ')
+mpl_frame.orient_body_fixed(N, (sm.pi, sm.pi/2, 0), 'XZX')
 coordinates = points[0].pos_from(points[0]).to_matrix(mpl_frame)
 for point in points[1:]:
     coordinates = coordinates.row_join(point.pos_from(points[0]).to_matrix(mpl_frame))
 eval_point_coords = sm.lambdify((q, p), coordinates, cse=True)
 
 plot_data = plot_config(*eval_point_coords(q_vals, p_vals),
-                        xlim=(-0.75, 0.75), ylim=(0.0, 1.5), zlim=(0, 1.5))
+                        xlim=(-0.75, 0.75), ylim=(-1.5, 0.0), zlim=(0, 1.5))
 fig, lines_top, lines_3d, lines_front, lines_right = plot_data
 
-ud = sm.Matrix([u3d, u4d, u5d, u6d, u7d, u8d, u11d, u12d, u13d, u14d, u15d, u16d])
+ud = sm.Matrix([u3d, u4d, u5d, u6d, u7d, u8d, u11d, u12d, u13d, u14d, u15d,
+                u16d])
 # TODO : If you use ud.diff() instead of replacing and using ud and use
 # cse=True, lambdify fails (but not with cse=False), report to sympy.
-eval_kane = sm.lambdify((ud, u, q, r, p), (Fr + Frs).xreplace(dict(zip(u.diff(), ud))), cse=True)
-eval_Mdgd = sm.lambdify((u, q, r, p), (kane.mass_matrix, kane.forcing), cse=True)
+eval_kane = sm.lambdify((ud, u, q, r, p),
+                        (Fr + Frs).xreplace(dict(zip(u.diff(), ud))),
+                        cse=True)
+eval_Mdgd = sm.lambdify((u, q, r, p), (kane.mass_matrix, kane.forcing),
+                        cse=True)
 
 
 def eval_eom(t, x, xd, residual, p):
@@ -693,6 +696,7 @@ def eval_eom(t, x, xd, residual, p):
     ud = xd[12:24]
     residual[0:12] = u - qd
     roll_rate = u[1]
+    # uncomment one of the following two lines if or if not using a controller
     r = [-100.0*roll_rate, 0.0, 0.0]  # postive roll rate feedback to drive steer torque
     #r = r_vals
     residual[12:15] = eval_kane(ud, u, q, r, p).squeeze()  # only eq for independent u
@@ -701,7 +705,7 @@ def eval_eom(t, x, xd, residual, p):
 
 
 x0 = np.hstack((q_vals, u_vals))
-r_vals[0] = -100.0*u_vals[1]
+r_vals[0] = -100.0*u_vals[1]  # comment if not using a controller
 ud0_ = np.linalg.solve(*eval_Mdgd(u_vals, q_vals, r_vals, p_vals)).squeeze()
 # fix order
 ud0 = np.array([ud0_[3], ud0_[0], ud0_[4], ud0_[1], ud0_[2], ud0_[5], ud0_[6],
@@ -711,18 +715,19 @@ resid = np.empty(24)
 eval_eom(0.1, x0, xd0, resid, p_vals)
 print('Initial residuals')
 print(resid)
-ts = np.linspace(0.0, 10.0, num=1001)
+ts = np.linspace(0.0, 10.0, num=301)
 
 # options here: https://github.com/bmcage/odes/blob/1e3b3324748f4665ee5a52ed1a6e0b7e6c05be7d/scikits/odes/sundials/ida.pyx#L848
-solver = dae('ida',
-             eval_eom,
-             first_step_size=0.01,
-             rtol=1e-8,
-             atol=1e-6,
-             algebraic_vars_idx=[15, 16, 17, 18, 19, 20, 21, 22, 23],
-             user_data=p_vals,
-             old_api=False,
-             )
+solver = dae(
+    'ida',
+    eval_eom,
+    first_step_size=0.01,
+    rtol=1e-8,
+    atol=1e-6,
+    algebraic_vars_idx=[15, 16, 17, 18, 19, 20, 21, 22, 23],
+    user_data=p_vals,
+    old_api=False,
+)
 
 solution = solver.solve(ts, x0, xd0)
 
@@ -741,6 +746,6 @@ def animate(i):
 ani = FuncAnimation(fig, animate, len(ts))
 
 plt.figure()
-plt.plot(ts, xs)
+plt.plot(ts, xs[:, 0:12])
 
 plt.show()
