@@ -136,7 +136,7 @@ bicep_pathway = LinearPathway(Cm, Dm)
 bicep_activation = FirstOrderActivationDeGroote2016.with_default_constants('bicep')
 bicep = MusculotendonDeGroote2016('bicep', bicep_pathway, activation_dynamics=bicep_activation)
 bicep_constants = {
-    bicep._F_M_max: 0.0,
+    bicep._F_M_max: 500.0,
     bicep._l_M_opt: 0.6 * 0.3,
     bicep._l_T_slack: 0.55 * 0.3,
     bicep._v_M_max: 10.0,
@@ -148,7 +148,7 @@ tricep_pathway = ExtensorPathway(C.y, P3, -C.z, D.z, Cm, Dm, r, q4)
 tricep_activation = FirstOrderActivationDeGroote2016.with_default_constants('tricep')
 tricep = MusculotendonDeGroote2016('tricep', tricep_pathway, activation_dynamics=tricep_activation)
 tricep_constants = {
-    tricep._F_M_max: 0.0,
+    tricep._F_M_max: 500.0,
     tricep._l_M_opt: 0.6 * 0.3,
     tricep._l_T_slack: 0.65 * 0.3,
     tricep._v_M_max: 10.0,
@@ -195,9 +195,9 @@ kane = me.KanesMethod(
 Fr, Frs = kane.kanes_equations()
 
 p_vals = np.array([
-    -0.3,  # dx [m]
+    -0.31,  # dx [m]
     0.15,  # dy [m]
-    -0.3,  # dz [m]
+    -0.31,  # dz [m]
     0.2,   # lA [m]
     0.3,  # lC [m]
     0.3,  # lD [m]
@@ -206,8 +206,8 @@ p_vals = np.array([
     1.7,  # mD [kg]
     9.81,  # g [m/s/s]
     0.0,  # kA [Nm/rad]
-    0.0,  # cA [Nms/rad]
-    0.02,  # r [m]
+    0.2,  # cA [Nms/rad]
+    0.03,  # r [m]
 ])
 mt_vals = np.array(list(musculotendon_constants.values()))
 
@@ -275,8 +275,8 @@ def eval_excitation(t):
         Excitation of the bicep and tricep at time t.
 
     """
-    e_bicep = 0.01 if t < 0.1 else 0.01
-    e_tricep = 0.01 if t < 0.1 else 0.01
+    e_bicep = 0.01 if t < 0.1 else 0.9
+    e_tricep = 0.01 if t < 0.1 else 0.5
     e = np.array([e_bicep, e_tricep])
     return e
 
@@ -321,6 +321,7 @@ def eval_eom(t, x, xd, residual, constants):
 
 solver = dae('ida',
              eval_eom,
+             first_step_size=0.01,
              rtol=1e-5,
              atol=1e-5,
              algebraic_vars_idx=[5, 6, 7],
@@ -333,7 +334,7 @@ ud0 = np.linalg.solve(*eval_Mdgd(u_vals, q_vals, a_vals, p_vals, mt_vals)).squee
 da0 = eval_da(eval_excitation(t0), a_vals)
 xd0 = np.hstack((u_vals, ud0, da0))
 resid = np.empty(10)
-eval_eom(0.1, x0, xd0, resid, (p_vals, mt_vals))
+eval_eom(0.01, x0, xd0, resid, (p_vals, mt_vals))
 print(resid)
 ts = np.linspace(t0, tF, num=101)
 solution = solver.solve(ts, x0, xd0)
