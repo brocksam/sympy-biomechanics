@@ -12,7 +12,7 @@ from biomechanics import (
     FirstOrderActivationDeGroote2016,
     MusculotendonDeGroote2016,
 )
-from biomechanics.plot import plot_config
+from biomechanics.plot import plot_config, plot_traj
 
 
 class ReferenceFrame(mec.ReferenceFrame):
@@ -715,7 +715,7 @@ speed = 5.0  # m/s
 
 u_vals = np.array([
     0.0,  # u3
-    0.5,  # u4
+    0.4,  # u4
     0.0,  # u5
     -speed/p_vals[-1],  # u6
     0.0,  # u7
@@ -761,10 +761,17 @@ r_vals = np.array([
 
 mpl_frame = mec.ReferenceFrame('M')
 mpl_frame.orient_body_fixed(N, (sm.pi, sm.pi/2, 0), 'XZX')
-coordinates = points[0].pos_from(points[0]).to_matrix(mpl_frame)
-for point in points[1:]:
-    coordinates = coordinates.row_join(point.pos_from(points[0]).to_matrix(mpl_frame))
-eval_point_coords = sm.lambdify((q, p), coordinates, cse=True)
+
+
+def gen_pt_coord_func(frame, pts, q, p):
+    coordinates = pts[0].pos_from(pts[0]).to_matrix(mpl_frame)
+    for point in pts[1:]:
+        coordinates = coordinates.row_join(
+            point.pos_from(pts[0]).to_matrix(mpl_frame))
+    return sm.lambdify((q, p), coordinates, cse=True)
+
+
+eval_point_coords = gen_pt_coord_func(N, points, q, p)
 
 plot_data = plot_config(*eval_point_coords(q_vals, p_vals),
                         xlim=(-0.75, 0.75), ylim=(-1.5, 0.0), zlim=(0, 1.5))
@@ -870,7 +877,6 @@ def animate(i):
 
 ani = FuncAnimation(fig, animate, len(ts))
 
-plt.figure()
-plt.plot(ts, xs[:, 0:12])
+plot_traj(ts, xs, q.col_join(u))
 
 plt.show()

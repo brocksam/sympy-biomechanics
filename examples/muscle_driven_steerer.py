@@ -12,7 +12,7 @@ from biomechanics import (
     FirstOrderActivationDeGroote2016,
     MusculotendonDeGroote2016,
 )
-from biomechanics.plot import plot_config
+from biomechanics.plot import plot_config, plot_traj
 
 # q1 : steer angle
 # q2 : shoulder extension
@@ -205,7 +205,7 @@ p_vals = np.array([
     2.3,  # mC [kg]
     1.7,  # mD [kg]
     9.81,  # g [m/s/s]
-    0.0,  # kA [Nm/rad]
+    10.0,  # kA [Nm/rad]
     0.2,  # cA [Nms/rad]
     0.03,  # r [m]
 ])
@@ -246,7 +246,8 @@ for point in [P1, P4, Do, Dm, P3, Cm, Co, P2]:
     coordinates = coordinates.row_join(point.pos_from(O).to_matrix(mpl_frame))
 eval_point_coords = sm.lambdify((q, p), coordinates, cse=True)
 
-plot_data = plot_config(*eval_point_coords(q_vals, p_vals))
+plot_data = plot_config(*eval_point_coords(q_vals, p_vals), xlim=(-0.2, 0.4),
+                        ylim=(-0.4, 0.2), zlim=(-0.2, 0.4))
 fig, lines_top, lines_3d, lines_front, lines_right = plot_data
 
 ud = sm.Matrix([u1d, u2d, u3d, u4d])
@@ -354,7 +355,6 @@ def animate(i):
 
 ani = FuncAnimation(fig, animate, len(ts), interval=10)
 
-# plt.figure()
-# plt.plot(ts, xs)
+plot_traj(ts, xs, (q1, q2, q3, q4, u1, u2, u3, u4, bicep.a, tricep.a))
 
 plt.show()
