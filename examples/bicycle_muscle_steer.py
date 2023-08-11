@@ -617,7 +617,7 @@ speed = 5.0  # m/s
 
 u_vals = np.array([
     0.0,  # u3
-    0.5,  # u4
+    0.4,  # u4
     0.0,  # u5
     -speed/p_vals[-1],  # u6
     0.0,  # u7
