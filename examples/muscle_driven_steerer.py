@@ -81,7 +81,7 @@ C.orient_axis(B, q3, B.z)
 D.orient_axis(C, q4, C.y)
 
 A.set_ang_vel(N, u1*N.z)
-B.set_ang_vel(N, u2*N.z)
+B.set_ang_vel(N, u2*N.y)
 C.set_ang_vel(B, u3*B.z)
 D.set_ang_vel(C, u4*C.y)
 
