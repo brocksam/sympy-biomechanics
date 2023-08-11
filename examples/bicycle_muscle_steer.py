@@ -749,15 +749,37 @@ u_vals[u_idxs] = u_sol
 print('Initial speeds')
 print(u_vals)
 
+
+def eval_e(roll_rate):
+    """Specify muscle excitation as a function of time.
+
+    We want the right bicep and left tricep to excite when the roll rate is
+    positive, and the left bicep and right tricep to excite when the roll
+    rate is negative.
+
+    """
+    max_roll_rate = 0.2
+    if roll_rate > 0.0:
+        normalized_roll_rate = roll_rate / max_roll_rate
+        e_bicep_r = normalized_roll_rate if normalized_roll_rate < 0.99 else 0.99
+        e_bicep_l = 0.01
+        e_tricep_r = 0.01
+        e_tricep_l = normalized_roll_rate if normalized_roll_rate < 0.99 else 0.99
+    else:
+        normalized_roll_rate = -roll_rate / max_roll_rate
+        e_bicep_r = 0.01
+        e_bicep_l = normalized_roll_rate if normalized_roll_rate < 0.99 else 0.99
+        e_tricep_r = normalized_roll_rate if normalized_roll_rate < 0.99 else 0.99
+        e_tricep_l = 0.01
+    return [e_bicep_r, e_bicep_l, e_tricep_r, e_tricep_l]
+
+
+roll_rate = u_vals[1]
 r_vals = np.array([
     0.0,
     0.0,
     0.0,
-    0.0,  # bi_r
-    0.0,  # bi_l
-    0.0,  # tri_r
-    0.0,  # tri_l
-])
+] + eval_e(roll_rate))
 
 mpl_frame = mec.ReferenceFrame('M')
 mpl_frame.orient_body_fixed(N, (sm.pi, sm.pi/2, 0), 'XZX')
@@ -808,15 +830,6 @@ def eval_eom(t, x, xd, residual, constants):
        Constant parameters: p = []
 
     """
-
-    def eval_e(t):
-        """Specify muscle excitation as a function of time."""
-        e_bicep_r = 0.01
-        e_bicep_l = 0.01
-        e_tricep_r = 0.01
-        e_tricep_l = 0.01
-        return [e_bicep_r, e_bicep_l, e_tricep_r, e_tricep_l]
-
     p, mt = constants
     q = x[0:12]
     u = x[12:24]
@@ -827,7 +840,7 @@ def eval_eom(t, x, xd, residual, constants):
     residual[0:12] = u - qd
     roll_rate = u[1]
     # uncomment one of the following two lines if or if not using a controller
-    r = [-100.0*roll_rate, 0.0, 0.0] + eval_e(t)  # postive roll rate feedback to drive steer torque
+    r = [0.0, 0.0, 0.0] + eval_e(roll_rate)  # postive roll rate feedback to drive steer torque
     #r = r_vals
     residual[12:15] = eval_kane(ud, u, q, a, r, p, mt).squeeze()  # only eq for independent u
     residual[15:22] = eval_holonomic(q, p).squeeze()  # shape(7,)
@@ -836,12 +849,12 @@ def eval_eom(t, x, xd, residual, constants):
 
 
 x0 = np.hstack((q_vals, u_vals, a_vals))
-r_vals[0] = -100.0*u_vals[1]  # comment if not using a controller
 ud0_ = np.linalg.solve(*eval_Mdgd(u_vals, q_vals, a_vals, r_vals, p_vals, mt_vals)).squeeze()
 # fix order
 ud0 = np.array([ud0_[3], ud0_[0], ud0_[4], ud0_[1], ud0_[2], ud0_[5], ud0_[6],
                 ud0_[7], ud0_[8], ud0_[9], ud0_[10], ud0_[11]])
-ad0 = np.array([0.01, 0.01, 0.01, 0.01])
+ad0 = eval_ad(np.array(eval_e(u_vals[1])), a_vals).squeeze()
+print(f'{ad0=}')
 xd0 = np.hstack((u_vals, ud0, ad0))
 resid = np.empty(28)
 eval_eom(0.1, x0, xd0, resid, (p_vals, mt_vals))
