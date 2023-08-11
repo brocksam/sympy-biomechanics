@@ -15,14 +15,22 @@ def plot_traj(t, x, syms):
         SymPy symbols associated with state.
 
     """
+    num_rows = 8
+    num_cols = (x.shape[1] // num_rows)
+    if x.shape[1] % num_rows > 0:
+        num_cols += 1
 
-    fig, axes = plt.subplots(x.shape[1], 1, sharex=True)
+    fig, axes = plt.subplots(num_rows, num_cols, sharex=True)
 
-    for ax, traj, sym in zip(axes, x.T, syms):
+    for ax, traj, sym in zip(axes.T.flatten(), x.T, syms):
         ax.plot(t, traj)
         ax.set_ylabel(sm.latex(sym, mode='inline'))
 
-    ax.set_xlabel('Time [s]')
+    # label the x axis only on the bottom row.
+    for ax in axes[-1, :]:
+        ax.set_xlabel('Time [s]')
+
+    fig.tight_layout()
 
     return axes
 
