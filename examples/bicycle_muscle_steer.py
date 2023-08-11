@@ -538,7 +538,7 @@ p_vals = np.array([
     0.3,  # d7, upper arm length
     0.35,  # d8, lower arm length
     0.06,  # d9
-    0.2,  # d10, handlebar half width
+    0.25,  # d10, handlebar half width
     -0.5,  # d11
     9.81,  # g
     7.178169776497895,  # ic11
@@ -592,7 +592,6 @@ eval_nonholonomic = sm.lambdify((u, q, p), nonholonomic, cse=True)
 # x = [q5, q11, ..., q16]
 knw_idxs = [0, 1, 3, 4, 5]
 unk_idxs = [2, 6, 7, 8, 9, 10, 11]
-print(eval_holonomic(q_vals, p_vals))
 q_sol = fsolve(lambda x: eval_holonomic((
     q_vals[0],
     q_vals[1],
@@ -608,6 +607,8 @@ q_sol = fsolve(lambda x: eval_holonomic((
     x[6]), p_vals).squeeze(), q_vals[unk_idxs])
 # update all q_vals with constraint consistent values
 q_vals[unk_idxs] = q_sol
+print('Checking whether holonomic constrain holds with initial conditions:')
+print(eval_holonomic(q_vals, p_vals).squeeze())
 
 print('Initial coordinates')
 print(np.rad2deg(q_vals))
