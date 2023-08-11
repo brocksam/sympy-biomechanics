@@ -5,7 +5,13 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import sympy as sm
 import sympy.physics.mechanics as mec
+from sympy.physics.mechanics._pathway import LinearPathway
 
+from biomechanics import (
+    ExtensorPathway,
+    FirstOrderActivationDeGroote2016,
+    MusculotendonDeGroote2016,
+)
 from biomechanics.plot import plot_config
 
 
@@ -216,11 +222,11 @@ go.set_pos(cgr, d7/2*G['3'])
 
 # right shoulder to upper arm muscle attachment
 gm = mec.Point('gm')
-gm.set_pos(cgr, 2*d7/3*G['3'])
+gm.set_pos(cgr, 1*d7/10*G['3'])
 
 # right elbow to lower arm muscle atachment
 hm = mec.Point('hm')
-hm.set_pos(gh, d8/3*H['3'])
+hm.set_pos(gh, 2*d8/10*H['3'])
 
 # right elbow to lower arm mass center
 ho = mec.Point('ho')
@@ -245,11 +251,11 @@ io.set_pos(cgl, d7/2*I['3'])
 
 # left shoulder to upper arm muscle attachment
 im = mec.Point('im')
-im.set_pos(cgl, 2*d7/3*I['3'])
+im.set_pos(cgl, 1*d7/10*I['3'])
 
 # left elbow to lower arm muscle atachment
 jm = mec.Point('jm')
-jm.set_pos(ji, d8/3*J['3'])
+jm.set_pos(ji, 2*d8/10*J['3'])
 
 # left elbow to lower arm mass center
 jo = mec.Point('jo')
@@ -431,6 +437,87 @@ llower_arm = mec.RigidBody('Left Lower Arm', jo, J, mj, (Ij, jo))
 bodies = [rear_frame, rear_wheel, front_frame, front_wheel, rupper_arm,
           rlower_arm, lupper_arm, llower_arm]
 
+################
+# Musculotendons
+################
+
+print('Defining the musculotendons')
+
+F_M_max_bicep, F_M_max_tricep = sm.symbols('F_M_max_bicep, F_M_max_tricep')
+l_M_opt_bicep, l_M_opt_tricep = sm.symbols('l_M_opt_bicep, l_M_opt_tricep')
+l_T_slack_bicep, l_T_slack_tricep = sm.symbols('l_T_slack_bicep, l_T_slack_tricep')
+v_M_max, alpha_opt, beta = sm.symbols('v_M_max, alpha_opt, beta')
+
+bicep_right_pathway = LinearPathway(gm, hm)
+bicep_right_activation = FirstOrderActivationDeGroote2016.with_default_constants('bi_r')
+bicep_right = MusculotendonDeGroote2016(
+    'bi_r',
+    bicep_right_pathway,
+    activation_dynamics=bicep_right_activation,
+    tendon_slack_length=l_T_slack_bicep,
+    peak_isometric_force=F_M_max_bicep,
+    optimal_fiber_length=l_M_opt_bicep,
+    maximal_fiber_velocity=v_M_max,
+    optimal_pennation_angle=alpha_opt,
+    fiber_damping_coefficient=beta,
+)
+
+bicep_left_pathway = LinearPathway(im, jm)
+bicep_left_activation = FirstOrderActivationDeGroote2016.with_default_constants('bi_l')
+bicep_left = MusculotendonDeGroote2016(
+    'bi_l',
+    bicep_left_pathway,
+    activation_dynamics=bicep_left_activation,
+    tendon_slack_length=l_T_slack_bicep,
+    peak_isometric_force=F_M_max_bicep,
+    optimal_fiber_length=l_M_opt_bicep,
+    maximal_fiber_velocity=v_M_max,
+    optimal_pennation_angle=alpha_opt,
+    fiber_damping_coefficient=beta,
+)
+
+tricep_right_pathway = ExtensorPathway(G['2'], gh, -G['3'], H['3'], gm, hm, d8/10, q13)
+tricep_right_activation = FirstOrderActivationDeGroote2016.with_default_constants('tri_r')
+tricep_right = MusculotendonDeGroote2016(
+    'tri_r',
+    tricep_right_pathway,
+    activation_dynamics=tricep_right_activation,
+    tendon_slack_length=l_T_slack_tricep,
+    peak_isometric_force=F_M_max_tricep,
+    optimal_fiber_length=l_M_opt_tricep,
+    maximal_fiber_velocity=v_M_max,
+    optimal_pennation_angle=alpha_opt,
+    fiber_damping_coefficient=beta,
+)
+
+tricep_left_pathway = ExtensorPathway(I['2'], ji, -I['3'], J['3'], im, jm, d8/10, q16)
+tricep_left_activation = FirstOrderActivationDeGroote2016.with_default_constants('tri_l')
+tricep_left = MusculotendonDeGroote2016(
+    'tri_l',
+    tricep_left_pathway,
+    activation_dynamics=tricep_left_activation,
+    tendon_slack_length=l_T_slack_tricep,
+    peak_isometric_force=F_M_max_tricep,
+    optimal_fiber_length=l_M_opt_tricep,
+    maximal_fiber_velocity=v_M_max,
+    optimal_pennation_angle=alpha_opt,
+    fiber_damping_coefficient=beta,
+)
+
+musculotendons = [bicep_right, bicep_left, tricep_right, tricep_left]
+musculotendon_constants = {
+    F_M_max_bicep: 500.0,
+    l_M_opt_bicep: 0.18,
+    l_T_slack_bicep: 0.17,
+    F_M_max_tricep: 500.0,
+    l_M_opt_tricep: 0.18,
+    l_T_slack_tricep: 0.19,
+    v_M_max: 10.0,
+    alpha_opt: 0.0,
+    beta: 0.1,
+}
+mt = sm.Matrix(list(musculotendon_constants.keys()))
+
 ###########################
 # Generalized Active Forces
 ###########################
@@ -452,7 +539,10 @@ Tc = (C, T4*A['1'] - T6*B['2'] - T7*C['3'])
 Td = (D, T6*C['2'])
 Te = (E, T7*C['3'])
 
-forces = [Fco, Fdo, Feo, Ffo, Fgo, Fho, Fio, Fjo, Tc, Td, Te]
+# musculotendon forces
+Fm = sum([musculotendon.to_loads() for musculotendon in musculotendons], start=[])
+
+forces = [Fco, Fdo, Feo, Ffo, Fgo, Fho, Fio, Fjo, Tc, Td, Te] + Fm
 
 # Manually compute the ground contact velocities.
 kindiffdict = sm.solve(kinematical, [q3.diff(t), q4.diff(t), q5.diff(t),
@@ -479,9 +569,15 @@ u_dep = (u3, u5, u8, u11, u12, u13, u14, u15, u16)  # yaw rate, pitch rate, fron
 p = sm.Matrix([d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, g, ic11, ic22,
                ic31, ic33, id11, id22, ie11, ie22, ie31, ie33, if11, if22, l1,
                l2, l3, l4, mc, md, me, mf, mg, mh, mi, mj, rf, rr])
-r = sm.Matrix([T4, T6, T7])
+mt = sm.Matrix(list(musculotendon_constants.keys()))
+
+e = sm.Matrix(sum((list(m.control_variables) for m in musculotendons), start=[]))
+T = sm.Matrix([T4, T6, T7])
+r = sm.Matrix.vstack(T, e)
 u = sm.Matrix([u3, u4, u5, u6, u7, u8, u11, u12, u13, u14, u15, u16])
 q = sm.Matrix([q3, q4, q5, q6, q7, q8, q11, q12, q13, q14, q15, q16])
+a = sm.Matrix(sum((list(m.state_variables) for m in musculotendons), start=[]))
+ad = sm.Matrix(sum((list(m.state_equations.values()) for m in musculotendons), start=[]))
 
 points = (
     dn,  # rear contact
@@ -569,6 +665,8 @@ p_vals = np.array([
     0.3,  # rr
 ])
 
+mt_vals = np.array(list(musculotendon_constants.values()))
+
 
 # start with some initial guess for the configuration and choose q1 as
 # independent
@@ -630,6 +728,13 @@ u_vals = np.array([
     0.0,  # u16
 ])
 
+a_vals = np.array([
+    0.01,  # bi_r
+    0.01,  # bi_l
+    0.01,  # tri_r
+    0.01,  # tri_l
+])
+
 k_idxs = [1, 3, 4]
 u_idxs = [0, 2, 5, 6, 7, 8, 9, 10, 11]
 u_sol = fsolve(lambda x: eval_nonholonomic((
@@ -648,6 +753,10 @@ r_vals = np.array([
     0.0,
     0.0,
     0.0,
+    0.0,  # bi_r
+    0.0,  # bi_l
+    0.0,  # tri_r
+    0.0,  # tri_l
 ])
 
 mpl_frame = mec.ReferenceFrame('M')
@@ -665,14 +774,15 @@ ud = sm.Matrix([u3d, u4d, u5d, u6d, u7d, u8d, u11d, u12d, u13d, u14d, u15d,
                 u16d])
 # TODO : If you use ud.diff() instead of replacing and using ud and use
 # cse=True, lambdify fails (but not with cse=False), report to sympy.
-eval_kane = sm.lambdify((ud, u, q, r, p),
+eval_kane = sm.lambdify((ud, u, q, a, r, p, mt),
                         (Fr + Frs).xreplace(dict(zip(u.diff(), ud))),
                         cse=True)
-eval_Mdgd = sm.lambdify((u, q, r, p), (kane.mass_matrix, kane.forcing),
+eval_Mdgd = sm.lambdify((u, q, a, r, p, mt), (kane.mass_matrix, kane.forcing),
                         cse=True)
+eval_ad = sm.lambdify((e, a), ad, cse=True)
 
 
-def eval_eom(t, x, xd, residual, p):
+def eval_eom(t, x, xd, residual, constants):
     """Returns the residual vector of the equations of motion.
 
     Parameters
@@ -687,33 +797,47 @@ def eval_eom(t, x, xd, residual, p):
        Time derivative of the state vector at time t.
     residual : ndarray, shape(24,)
        Vector to store the residuals in: residuals = [fk, fd, fh, fnh].
-    p : ndarray, shape(38,)
+    constants : tuple[ndarray : shape(38,), ndarray : shape(9,)]
        Constant parameters: p = []
 
     """
+
+    def eval_e(t):
+        """Specify muscle excitation as a function of time."""
+        e_bicep_r = 0.01
+        e_bicep_l = 0.01
+        e_tricep_r = 0.01
+        e_tricep_l = 0.01
+        return [e_bicep_r, e_bicep_l, e_tricep_r, e_tricep_l]
+
+    p, mt = constants
     q = x[0:12]
     u = x[12:24]
+    a = x[24:28]
     qd = xd[0:12]
     ud = xd[12:24]
+    ad = xd[24:28]
     residual[0:12] = u - qd
     roll_rate = u[1]
     # uncomment one of the following two lines if or if not using a controller
-    r = [-100.0*roll_rate, 0.0, 0.0]  # postive roll rate feedback to drive steer torque
+    r = [-100.0*roll_rate, 0.0, 0.0] + eval_e(t)  # postive roll rate feedback to drive steer torque
     #r = r_vals
-    residual[12:15] = eval_kane(ud, u, q, r, p).squeeze()  # only eq for independent u
+    residual[12:15] = eval_kane(ud, u, q, a, r, p, mt).squeeze()  # only eq for independent u
     residual[15:22] = eval_holonomic(q, p).squeeze()  # shape(7,)
     residual[22:24] = eval_nonholonomic(u, q, p).squeeze()[[0, 2]]  # shape(2,)
+    residual[24:28] = eval_ad(r[3:7], a).squeeze() - ad  # shape(4,)
 
 
-x0 = np.hstack((q_vals, u_vals))
+x0 = np.hstack((q_vals, u_vals, a_vals))
 r_vals[0] = -100.0*u_vals[1]  # comment if not using a controller
-ud0_ = np.linalg.solve(*eval_Mdgd(u_vals, q_vals, r_vals, p_vals)).squeeze()
+ud0_ = np.linalg.solve(*eval_Mdgd(u_vals, q_vals, a_vals, r_vals, p_vals, mt_vals)).squeeze()
 # fix order
 ud0 = np.array([ud0_[3], ud0_[0], ud0_[4], ud0_[1], ud0_[2], ud0_[5], ud0_[6],
                 ud0_[7], ud0_[8], ud0_[9], ud0_[10], ud0_[11]])
-xd0 = np.hstack((u_vals, ud0))
-resid = np.empty(24)
-eval_eom(0.1, x0, xd0, resid, p_vals)
+ad0 = np.array([0.01, 0.01, 0.01, 0.01])
+xd0 = np.hstack((u_vals, ud0, ad0))
+resid = np.empty(28)
+eval_eom(0.1, x0, xd0, resid, (p_vals, mt_vals))
 print('Initial residuals')
 print(resid)
 ts = np.linspace(0.0, 10.0, num=301)
@@ -726,7 +850,7 @@ solver = dae(
     rtol=1e-8,
     atol=1e-6,
     algebraic_vars_idx=[15, 16, 17, 18, 19, 20, 21, 22, 23],
-    user_data=p_vals,
+    user_data=(p_vals, mt_vals),
     old_api=False,
 )
 
