@@ -715,7 +715,7 @@ speed = 5.0  # m/s
 
 u_vals = np.array([
     0.0,  # u3
-    0.0,  # u4
+    0.4,  # u4
     0.0,  # u5
     -speed/p_vals[-1],  # u6
     0.0,  # u7
@@ -750,7 +750,7 @@ print('Initial speeds')
 print(u_vals)
 
 
-def eval_e(t):
+def eval_e_countersteer(t):
     if t < 0.3:
         e_bicep_r = 1.0
         e_bicep_l = 0.01
@@ -772,24 +772,25 @@ def eval_e_feedback(roll_rate):
     rate is negative.
 
     """
-    max_roll_rate = 0.2
-    if roll_rate > 0.0:
-        normalized_roll_rate = roll_rate / max_roll_rate
-        e_bicep_r = normalized_roll_rate if normalized_roll_rate < 0.99 else 0.99
+    max_roll_rate = 1.0
+    if roll_rate < 0.0:
+        normalized_roll_rate = -roll_rate / max_roll_rate
+        e_bicep_r = min(normalized_roll_rate, 0.99)
         e_bicep_l = 0.01
         e_tricep_r = 0.01
-        e_tricep_l = normalized_roll_rate if normalized_roll_rate < 0.99 else 0.99
+        e_tricep_l = min(normalized_roll_rate, 0.99)
     else:
-        normalized_roll_rate = -roll_rate / max_roll_rate
+        normalized_roll_rate = roll_rate / max_roll_rate
         e_bicep_r = 0.01
-        e_bicep_l = normalized_roll_rate if normalized_roll_rate < 0.99 else 0.99
-        e_tricep_r = normalized_roll_rate if normalized_roll_rate < 0.99 else 0.99
+        e_bicep_l = min(normalized_roll_rate, 0.99)
+        e_tricep_r = min(normalized_roll_rate, 0.99)
         e_tricep_l = 0.01
     return [e_bicep_r, e_bicep_l, e_tricep_r, e_tricep_l]
 
 
 def eval_r(t, x):
-    return [0.0, 0.0, 0.0] + eval_e(t)
+    roll_rate = x[13]
+    return [0.0, 0.0, 0.0] + eval_e_feedback(roll_rate)
 
 
 mpl_frame = mec.ReferenceFrame('M')
