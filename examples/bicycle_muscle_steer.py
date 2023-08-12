@@ -715,7 +715,7 @@ speed = 5.0  # m/s
 
 u_vals = np.array([
     0.0,  # u3
-    0.4,  # u4
+    0.0,  # u4
     0.0,  # u5
     -speed/p_vals[-1],  # u6
     0.0,  # u7
@@ -750,7 +750,21 @@ print('Initial speeds')
 print(u_vals)
 
 
-def eval_e(roll_rate):
+def eval_e(t):
+    if t < 0.3:
+        e_bicep_r = 1.0
+        e_bicep_l = 0.01
+        e_tricep_r = 0.01
+        e_tricep_l = 1.0
+    else:
+        e_bicep_r = 0.01
+        e_bicep_l = 0.01
+        e_tricep_r = 0.01
+        e_tricep_l = 0.01
+    return [e_bicep_r, e_bicep_l, e_tricep_r, e_tricep_l]
+
+
+def eval_e_feedback(roll_rate):
     """Specify muscle excitation as a function of time.
 
     We want the right bicep and left tricep to excite when the roll rate is
@@ -774,12 +788,9 @@ def eval_e(roll_rate):
     return [e_bicep_r, e_bicep_l, e_tricep_r, e_tricep_l]
 
 
-roll_rate = u_vals[1]
-r_vals = np.array([
-    0.0,
-    0.0,
-    0.0,
-] + eval_e(roll_rate))
+def eval_r(t, x):
+    return [0.0, 0.0, 0.0] + eval_e(t)
+
 
 mpl_frame = mec.ReferenceFrame('M')
 mpl_frame.orient_body_fixed(N, (sm.pi, sm.pi/2, 0), 'XZX')
@@ -811,7 +822,7 @@ eval_Mdgd = sm.lambdify((u, q, a, r, p, mt), (kane.mass_matrix, kane.forcing),
 eval_ad = sm.lambdify((e, a), ad, cse=True)
 
 
-def eval_eom(t, x, xd, residual, constants):
+def eval_eom(t, x, xd, residual, data):
     """Returns the residual vector of the equations of motion.
 
     Parameters
@@ -830,7 +841,7 @@ def eval_eom(t, x, xd, residual, constants):
        Constant parameters: p = []
 
     """
-    p, mt = constants
+    p, mt, r_func = data
     q = x[0:12]
     u = x[12:24]
     a = x[24:28]
@@ -838,26 +849,24 @@ def eval_eom(t, x, xd, residual, constants):
     ud = xd[12:24]
     ad = xd[24:28]
     residual[0:12] = u - qd
-    roll_rate = u[1]
-    # uncomment one of the following two lines if or if not using a controller
-    r = [0.0, 0.0, 0.0] + eval_e(roll_rate)  # postive roll rate feedback to drive steer torque
-    #r = r_vals
-    residual[12:15] = eval_kane(ud, u, q, a, r, p, mt).squeeze()  # only eq for independent u
+    r = r_func(t, x)
+    residual[12:15] = eval_kane(ud, u, q, a, r, p, mt).squeeze()  # shape(3,)
     residual[15:22] = eval_holonomic(q, p).squeeze()  # shape(7,)
     residual[22:24] = eval_nonholonomic(u, q, p).squeeze()[[0, 2]]  # shape(2,)
     residual[24:28] = eval_ad(r[3:7], a).squeeze() - ad  # shape(4,)
 
 
 x0 = np.hstack((q_vals, u_vals, a_vals))
+r_vals = eval_r(0.0, x0)
 ud0_ = np.linalg.solve(*eval_Mdgd(u_vals, q_vals, a_vals, r_vals, p_vals, mt_vals)).squeeze()
 # fix order
 ud0 = np.array([ud0_[3], ud0_[0], ud0_[4], ud0_[1], ud0_[2], ud0_[5], ud0_[6],
                 ud0_[7], ud0_[8], ud0_[9], ud0_[10], ud0_[11]])
-ad0 = eval_ad(np.array(eval_e(u_vals[1])), a_vals).squeeze()
+ad0 = eval_ad(r_vals[-4:], a_vals).squeeze()
 print(f'{ad0=}')
 xd0 = np.hstack((u_vals, ud0, ad0))
 resid = np.empty(28)
-eval_eom(0.1, x0, xd0, resid, (p_vals, mt_vals))
+eval_eom(0.1, x0, xd0, resid, (p_vals, mt_vals, eval_r))
 print('Initial residuals')
 print(resid)
 ts = np.linspace(0.0, 10.0, num=301)
@@ -870,7 +879,7 @@ solver = dae(
     rtol=1e-8,
     atol=1e-6,
     algebraic_vars_idx=[15, 16, 17, 18, 19, 20, 21, 22, 23],
-    user_data=(p_vals, mt_vals),
+    user_data=(p_vals, mt_vals, eval_r),
     old_api=False,
 )
 
@@ -890,6 +899,9 @@ def animate(i):
 
 ani = FuncAnimation(fig, animate, len(ts))
 
-plot_traj(ts, xs, q.col_join(u))
+plot_traj(ts, xs, q.col_join(u).col_join(sm.Matrix([bicep_right.a,
+                                                    bicep_left.a,
+                                                    tricep_right.a,
+                                                    tricep_left.a])))
 
 plt.show()
