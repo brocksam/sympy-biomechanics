@@ -128,8 +128,7 @@ radius = me.RigidBody('radius',
                       mass=mD,
                       inertia=(ID, Do))
 
-steer_resistance = me.Torque(A, (-kA*q1 - cA*u2)*N.z)
-steer_resistance = me.Torque(A, 0*N.z)
+steer_resistance = me.Torque(A, (-kA*q1 - cA*u1)*N.z)
 
 # musculotendons
 bicep_pathway = LinearPathway(Cm, Dm)
