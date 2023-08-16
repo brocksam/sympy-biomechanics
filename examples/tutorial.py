@@ -73,11 +73,8 @@ bicep = bm.MusculotendonDeGroote2016('bicep', bicep_pathway,
 
 bicep.to_loads()
 
-#from sympy.physics.mechanics.pathway import PathwayBase
-from sympy.physics.mechanics import PathwayBase
 
-
-class ExtensorPathway(PathwayBase):
+class ExtensorPathway(me.PathwayBase):
 
     def __init__(self, origin, insertion, axis_point, axis, parent_axis,
                  child_axis, radius, coordinate):
