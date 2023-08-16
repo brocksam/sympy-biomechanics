@@ -192,6 +192,33 @@ T4, T6, T7 = mec.dynamicsymbols('T4 T6 T7')
 
 print('Defining position vectors.')
 
+point_defs = {
+    'dn': ('rear wheel contact point', None, None),
+    'do': ('rear wheel (mass) center', 'dn', -rr*B['3']),
+    'co': ('rear frame mass center', 'do', l1*C['1'] + l2*C['3']),
+    'ce': ('steer axis point', 'do', d1*C['1']),
+    'cgr': ('right shoulder', 'do', d4*C['1'] + d5*C['2'] + d6*C['3']),
+    'gh': ('right elbow', 'cgr', d7*G['3']),
+    'go': ('right upper arm mass center', 'cgr', d7/2*G['3']),
+    'gm': ('right upper arm muscle attachment', 'cgr', 1*d7/10*G['3']),
+    'hm': ('right lower arm muscle attachment', 'gh', 2*d8/10*H['3']),
+    'ho': ('right lower arm mass center', 'gh', d8/2*H['3']),
+    'hc': ('right hand', 'gh', d8*H['3']),
+    'cgl': ('left shoulder', 'do', d4*C['1'] - d5*C['2'] + d6*C['3']),
+    'ji': ('left elbow', 'cgl', d7*I['3']),
+    'io': ('left upper arm mass center', 'cgl', d7/2*I['3']),
+    'im': ('left upper arm muscle attachment', 'cgl', 1*d7/10*I['3']),
+    'jm': ('left lower arm muscle attachment', 'ji', 2*d8/10*J['3']),
+    'jo': ('left elbow to lower arm mass center', 'ji', d8/2*J['3']),
+    'jc': ('left hand', 'ji', d8*J['3']),
+    'fo': ('front wheel center', 'ce', d2*E['3'] + d3*E['1']),
+    'ch_r': ('right handgrip', 'ce', d9*E['1'] + d10*E['2'] + d11*E['3']),
+    'ch_l': ('left handgrip', 'ce', d9*E['1'] - d10*E['2'] + d11*E['3']),
+    'eo': ('front frame center', 'fo', l3*E['1'] + l4*E['3']),
+    'fn': ('front wheel contact point', 'fo',
+           rf*E['2'].cross(A['3']).cross(E['2']).normalize()),
+}
+
 # rear wheel contact point
 dn = mec.Point('dn')
 
@@ -772,6 +799,8 @@ def eval_e_feedback(roll_rate):
     rate is negative.
 
     """
+    # TODO : Check the signs on this feedback, why is it opposite than
+    # expected?
     max_roll_rate = 1.0
     if roll_rate < 0.0:
         normalized_roll_rate = -roll_rate / max_roll_rate
