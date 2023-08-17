@@ -1,6 +1,6 @@
 from sympy import asin, cos, sin
 from sympy.physics.mechanics import Force, Point, dynamicsymbols
-from sympy.physics.mechanics._pathway import PathwayBase
+from sympy.physics.mechanics.pathway import PathwayBase
 
 
 class ExtensorPathway(PathwayBase):
