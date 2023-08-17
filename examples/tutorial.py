@@ -306,17 +306,17 @@ import numpy as np
 from scipy.optimize import fsolve
 
 p_vals = np.array([
-    -0.31,  # dx [m]
+    0.31,  # dx [m]
     0.15,  # dy [m]
     -0.31,  # dz [m]
     0.2,   # lA [m]
     0.3,  # lC [m]
     0.3,  # lD [m]
-    1.0,  # mA [kg]
+    0.5,  # mA [kg]
     2.3,  # mC [kg]
     1.7,  # mD [kg]
     9.81,  # g [m/s/s]
-    10.0,  # k [Nm/rad]
+    5.0,  # k [Nm/rad]
     0.5,  # c [Nms/rad]
     0.03,  # r [m]
     500.0,
