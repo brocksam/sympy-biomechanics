@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import sympy as sm
 import sympy.physics.mechanics as me
-from sympy.physics.mechanics._pathway import LinearPathway
+from sympy.physics.mechanics.pathway import LinearPathway
 
 from biomechanics import (
     ExtensorPathway,
@@ -128,8 +128,7 @@ radius = me.RigidBody('radius',
                       mass=mD,
                       inertia=(ID, Do))
 
-steer_resistance = me.Torque(A, (-kA*q1 - cA*u2)*N.z)
-steer_resistance = me.Torque(A, 0*N.z)
+steer_resistance = me.Torque(A, (-kA*q1 - cA*u1)*N.z)
 
 # musculotendons
 bicep_pathway = LinearPathway(Cm, Dm)
