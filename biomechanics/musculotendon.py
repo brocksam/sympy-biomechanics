@@ -1,7 +1,7 @@
 from enum import IntEnum, auto, unique
 
 from sympy import Function, Integer, Symbol, sin, sqrt
-from sympy.physics.mechanics._actuator import ForceActuator
+from sympy.physics.mechanics.actuator import ForceActuator
 
 from biomechanics.activation import ActivationBase
 from biomechanics.curve import (

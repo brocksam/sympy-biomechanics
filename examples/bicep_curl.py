@@ -10,8 +10,8 @@ from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
 import sympy as sm
 import sympy.physics.mechanics as me
-from sympy.physics.mechanics._actuator import LinearSpring, LinearDamper
-from sympy.physics.mechanics._pathway import LinearPathway, PathwayBase
+from sympy.physics.mechanics.actuator import LinearSpring, LinearDamper
+from sympy.physics.mechanics.pathway import LinearPathway, PathwayBase
 
 from biomechanics import (
     FirstOrderActivationDeGroote2016,
