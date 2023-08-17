@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import sympy as sm
 import sympy.physics.mechanics as me
-from sympy.physics.mechanics._pathway import LinearPathway
+from sympy.physics.mechanics.pathway import LinearPathway
 
 from biomechanics import (
     ExtensorPathway,
