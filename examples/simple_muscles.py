@@ -20,6 +20,8 @@ P.set_vel(N, u*N.x)
 
 viscous_drag = me.Force(P, -c*u*N.x)
 
+#c0, c1, c2, c3 = sm.symbols('c0, c1, c2, c3')
+
 muscle_pathway = LinearPathway(O, P)
 muscle_activation = FirstOrderActivationDeGroote2016('big_dog') #.with_default_constants('muscle')
 muscle = MusculotendonDeGroote2016('muscle', muscle_pathway,
@@ -31,13 +33,14 @@ kane = me.KanesMethod(N, (q,), (u,), kd_eqs=(u - q.diff(),))
 kane.kanes_equations((block,), (muscle.to_loads() + [viscous_drag]))
 
 a = muscle.activation_dynamics.state_variables[0]
+e = muscle.activation_dynamics.control_variables[0]
 
 dqdt = u
 dudt = kane.forcing/m
 dadt = list(muscle.activation_dynamics.state_equations.values())[0]
 
 state = [q, u, a]
-inputs = []  # need inputs
+inputs = [e]
 constants = [m, c, ]  # need all muscle constants
 
 eval_eom = sm.lambdify((state, inputs, constants), (dqdt, dudt, dadt))
