@@ -1,6 +1,5 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
 import sympy as sm
 import sympy.physics.mechanics as me
 from sympy.physics.mechanics.pathway import LinearPathway
@@ -30,3 +29,15 @@ block = me.Particle('block', P, m)
 
 kane = me.KanesMethod(N, (q,), (u,), kd_eqs=(u - q.diff(),))
 kane.kanes_equations((block,), (muscle.to_loads() + [viscous_drag]))
+
+a = muscle.activation_dynamics.state_variables[0]
+
+dqdt = u
+dudt = kane.forcing/m
+dadt = list(muscle.activation_dynamics.state_equations.values())[0]
+
+state = [q, u, a]
+inputs = []  # need inputs
+constants = [m, c, ]  # need all muscle constants
+
+eval_eom = sm.lambdify((state, inputs, constants), (dqdt, dudt, dadt))
