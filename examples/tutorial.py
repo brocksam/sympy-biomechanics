@@ -341,10 +341,16 @@ q_vals = np.array([
     np.deg2rad(75.0),  # q4 [rad]
 ])
 
-q_sol = fsolve(lambda x: eval_holonomic((q_vals[0], x[0], x[1], x[2]), p_vals).squeeze(),
-    q_vals[1:])
-# update all q_vals with constraint consistent values
-q_vals[1], q_vals[2], q_vals[3] = q_sol[0], q_sol[1], q_sol[2]
+
+def eval_holo_fsolve(x):
+    q1 = q_vals[0]  # specified
+    q2, q3, q4 = x
+    return eval_holonomic((q1, q2, q3, q4), p_vals).squeeze()
+
+
+q_vals[1:] = fsolve(eval_holo_fsolve, q_vals[1:])
+
+np.rad2deg(q_vals)
 
 u_vals = np.array([
     0.0,  # u1, [rad/s]
@@ -374,12 +380,10 @@ def eval_rhs(t, x, p):
     u = x[4:8]
     a = x[8:10]
 
-    if t < 0.5:
+    if t < 0.5 or t > 1.5:
         e = np.array([0.0, 0.0])
-    elif t < 1.0:
-        e = np.array([-0.2, 0.8])
     else:
-        e = np.array([0.0, 0.0])
+        e = np.array([0.8, 0.0])
 
     qd = u
     m, f, ad = eval_diffeq(q, u, a, e, p)
