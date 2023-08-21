@@ -91,11 +91,18 @@ print(dudt.doit().xreplace({
 }))
 print(eval_eom(x_vals, r_vals, p_vals))
 
+
+def eval_rhs(t, x):
+
+    r = np.array([0.5*t])
+
+    return eval_eom(x, r, p_vals)
+
 from scipy.integrate import solve_ivp
 
-t0, tf = 0.0, 0.08
+t0, tf = 0.0, 1.0
 times = np.linspace(t0, tf, num=1001)
-sol = solve_ivp(lambda t, x: eval_eom(x, r_vals, p_vals),
+sol = solve_ivp(eval_rhs,
                 (t0, tf),
                 x_vals, t_eval=times)
 
