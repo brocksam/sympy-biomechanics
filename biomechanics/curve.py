@@ -29,7 +29,7 @@ class CharacteristicCurveFunction(Function):
         return self.doit(deep=False, evaluate=False)._eval_evalf(prec)
 
     def _print_code(self, printer):
-        return printer.doprint(self.doit(deep=False, evaluate=False))
+        return f'({printer.doprint(self.doit(deep=False, evaluate=False))})'
 
     _ccode = _print_code
     _cupycode = _print_code
