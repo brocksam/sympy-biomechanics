@@ -23,7 +23,7 @@ P.set_vel(N, u*N.x)
 gravity = me.Force(P, m*g*N.x)
 
 muscle_pathway = LinearPathway(O, P)
-muscle_activation = FirstOrderActivationDeGroote2016('big_dog').with_default_constants('muscle')
+muscle_activation = FirstOrderActivationDeGroote2016.with_default_constants('muscle')
 muscle = MusculotendonDeGroote2016(
     'muscle',
     muscle_pathway,
@@ -54,32 +54,32 @@ constants = [m, g, F_M_max, l_M_opt, l_T_slack, v_M_max, alpha_opt, beta]
 
 eval_eom = sm.lambdify((state, inputs, constants), (dqdt, dudt, dadt))
 
-x_vals = np.array([
-    0.0,
-    0.0,
-    0.0,
-])
-
-r_vals = np.array([
-    0.0,
-])
-
 p_vals = np.array([
     1.0,  # m [kg]
     9.81,  # g
-    500.0,
-    0.18,
-    0.17,
-    10.0,
-    0.0,
-    0.1,
+    500.0,  # F_M_max
+    0.18,  # l_M_opt
+    0.17,  # l_T_slack
+    10.0,  # v_M_max
+    0.0,  # alpha_opt
+    0.1,  # beta
+])
+
+x_vals = np.array([
+    p_vals[3] + p_vals[4],  # q [m]
+    0.0,  # u [m/]
+    0.0,  # a [?]
+])
+
+r_vals = np.array([
+    0.0,  # e
 ])
 
 print(eval_eom(x_vals, r_vals, p_vals))
 
 from scipy.integrate import solve_ivp
 
-sol = solve_ivp(lambda t, x: eval_eom(x, r_vals, p_vals), (0.0, 5.0), x_vals)
+sol = solve_ivp(lambda t, x: eval_eom(x, r_vals, p_vals), (0.0, 1.0), x_vals)
 
 import matplotlib.pyplot as plt
 
