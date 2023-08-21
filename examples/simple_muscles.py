@@ -93,13 +93,17 @@ print(eval_eom(x_vals, r_vals, p_vals))
 
 from scipy.integrate import solve_ivp
 
+t0, tf = 0.0, 0.08
+times = np.linspace(t0, tf, num=1001)
 sol = solve_ivp(lambda t, x: eval_eom(x, r_vals, p_vals),
-                (0.0, 0.04),
-                x_vals)
+                (t0, tf),
+                x_vals, t_eval=times)
 
 import matplotlib.pyplot as plt
 
-fig, ax = plt.subplots()
-ax.plot(sol.t, sol.y.T)
-ax.legend(state)
+fig, axes = plt.subplots(3, 1)
+axes[0].plot(sol.t, sol.y[0], label=state[0])
+axes[1].plot(sol.t, sol.y[1], label=state[1])
+axes[2].plot(sol.t, sol.y[2], label=state[2])
+axes[0].legend(), axes[1].legend(), axes[2].legend()
 fig.savefig('muscle-vs-gravity.png')
