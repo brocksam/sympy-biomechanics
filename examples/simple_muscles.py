@@ -75,12 +75,48 @@ r_vals = np.array([
     0.0,  # e
 ])
 
-print(dudt.doit().xreplace({a: 0, e: 0, m: 1.0, g: 9.81, q: 0.17 + 0.18, u: 0,
-                            l_T_slack: 0.17, l_M_opt: 0.18, F_M_max: 500.0,
-                            v_M_max: 10.0, alpha_opt: 0.0, beta: 0.1}))
-print(dudt.doit().subs({a: 0, e: 0, m: 1.0, g: 9.81, q: 0.17 + 0.18, u: 0,
-                        l_T_slack: 0.17, l_M_opt: 0.18, F_M_max: 500.0,
-                        v_M_max: 10.0, alpha_opt: 0.0, beta: 0.1}))
+print(dudt.doit().evalf(subs={
+    q: 0.17 + 0.18,
+    u: 0.0,
+    a: 0.0,
+    e: 0.0,
+    m: 1.0,
+    g: 9.81,
+    F_M_max: 500.0,
+    l_M_opt: 0.18,
+    l_T_slack: 0.17,
+    v_M_max: 10.0,
+    alpha_opt: 0.0,
+    beta: 0.1,
+}))
+print(dudt.doit().xreplace({
+    q: 0.17 + 0.18,
+    u: 0.0,
+    a: 0.0,
+    e: 0.0,
+    m: 1.0,
+    g: 9.81,
+    F_M_max: 500.0,
+    l_M_opt: 0.18,
+    l_T_slack: 0.17,
+    v_M_max: 10.0,
+    alpha_opt: 0.0,
+    beta: 0.1,
+}))
+print(dudt.doit().subs({
+    q: 0.17 + 0.18,
+    u: 0.0,
+    a: 0.0,
+    e: 0.0,
+    m: 1.0,
+    g: 9.81,
+    F_M_max: 500.0,
+    l_M_opt: 0.18,
+    l_T_slack: 0.17,
+    v_M_max: 10.0,
+    alpha_opt: 0.0,
+    beta: 0.1,
+}))
 eval_dudt = sm.lambdify((state, inputs, constants), dudt)
 # TODO : The following give incorrect results (as compared to the prior to
 # xreplace() and subs() calls.
