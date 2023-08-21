@@ -41,8 +41,8 @@ block = me.Particle('block', P, m)
 kane = me.KanesMethod(N, (q,), (u,), kd_eqs=(u - q.diff(),))
 kane.kanes_equations((block,), (muscle.to_loads() + [gravity]))
 
-a = muscle.activation_dynamics.state_variables[0]
 e = muscle.activation_dynamics.control_variables[0]
+a = muscle.activation_dynamics.state_variables[0]
 
 dqdt = u
 dudt = kane.forcing[0]/m
@@ -56,7 +56,7 @@ eval_eom = sm.lambdify((state, inputs, constants), (dqdt, dudt, dadt))
 
 p_vals = np.array([
     1.0,  # m [kg]
-    9.81,  # g
+    9.81,  # g [m/s/s]
     500.0,  # F_M_max
     0.18,  # l_M_opt
     0.17,  # l_T_slack
@@ -67,7 +67,7 @@ p_vals = np.array([
 
 x_vals = np.array([
     p_vals[3] + p_vals[4],  # q [m]
-    0.0,  # u [m/]
+    0.0,  # u [m/s]
     0.0,  # a [?]
 ])
 
@@ -75,11 +75,21 @@ r_vals = np.array([
     0.0,  # e
 ])
 
+print(dudt.doit().xreplace({a: 0, e: 0, m: 1.0, g: 9.81, q: 0.17 + 0.18, u: 0,
+                            l_T_slack: 0.17, l_M_opt: 0.18, F_M_max: 500.0,
+                            v_M_max: 10.0, alpha_opt: 0.0, beta: 0.1}))
+print(dudt.doit().subs({a: 0, e: 0, m: 1.0, g: 9.81, q: 0.17 + 0.18, u: 0,
+                        l_T_slack: 0.17, l_M_opt: 0.18, F_M_max: 500.0,
+                        v_M_max: 10.0, alpha_opt: 0.0, beta: 0.1}))
+eval_dudt = sm.lambdify((state, inputs, constants), dudt)
+# TODO : The following give incorrect results (as compared to the prior to
+# xreplace() and subs() calls.
+print(eval_dudt(x_vals, r_vals, p_vals))
 print(eval_eom(x_vals, r_vals, p_vals))
 
 from scipy.integrate import solve_ivp
 
-sol = solve_ivp(lambda t, x: eval_eom(x, r_vals, p_vals), (0.0, 1.0), x_vals)
+sol = solve_ivp(lambda t, x: eval_eom(x, r_vals, p_vals), (0.0, 5.0), x_vals)
 
 import matplotlib.pyplot as plt
 
