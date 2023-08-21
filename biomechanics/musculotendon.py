@@ -60,7 +60,7 @@ class MusculotendonDeGroote2016(ForceActuator, _NamedMixin):
 
         # Musculotendon dynamics
         self.musculotendon_dynamics = musculotendon_dynamics
-        self._force = self._F_T
+        self._force = -self._F_T
 
     @property
     def tendon_slack_length(self):
