@@ -75,20 +75,6 @@ r_vals = np.array([
     0.0,  # e
 ])
 
-print(dudt.doit().evalf(subs={
-    q: 0.17 + 0.18,
-    u: 0.0,
-    a: 0.0,
-    e: 0.0,
-    m: 1.0,
-    g: 9.81,
-    F_M_max: 500.0,
-    l_M_opt: 0.18,
-    l_T_slack: 0.17,
-    v_M_max: 10.0,
-    alpha_opt: 0.0,
-    beta: 0.1,
-}))
 print(dudt.doit().xreplace({
     q: 0.17 + 0.18,
     u: 0.0,
@@ -103,32 +89,17 @@ print(dudt.doit().xreplace({
     alpha_opt: 0.0,
     beta: 0.1,
 }))
-print(dudt.doit().subs({
-    q: 0.17 + 0.18,
-    u: 0.0,
-    a: 0.0,
-    e: 0.0,
-    m: 1.0,
-    g: 9.81,
-    F_M_max: 500.0,
-    l_M_opt: 0.18,
-    l_T_slack: 0.17,
-    v_M_max: 10.0,
-    alpha_opt: 0.0,
-    beta: 0.1,
-}))
-eval_dudt = sm.lambdify((state, inputs, constants), dudt)
-# TODO : The following give incorrect results (as compared to the prior to
-# xreplace() and subs() calls.
-print(eval_dudt(x_vals, r_vals, p_vals))
 print(eval_eom(x_vals, r_vals, p_vals))
 
 from scipy.integrate import solve_ivp
 
-sol = solve_ivp(lambda t, x: eval_eom(x, r_vals, p_vals), (0.0, 1.0), x_vals,
-                method='LSODA')
+sol = solve_ivp(lambda t, x: eval_eom(x, r_vals, p_vals),
+                (0.0, 0.04),
+                x_vals)
 
 import matplotlib.pyplot as plt
 
-plt.plot(sol.t, sol.y.T)
-plt.show()
+fig, ax = plt.subplots()
+ax.plot(sol.t, sol.y.T)
+ax.legend(state)
+fig.savefig('muscle-vs-gravity.png')
