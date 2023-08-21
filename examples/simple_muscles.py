@@ -125,7 +125,8 @@ print(eval_eom(x_vals, r_vals, p_vals))
 
 from scipy.integrate import solve_ivp
 
-sol = solve_ivp(lambda t, x: eval_eom(x, r_vals, p_vals), (0.0, 5.0), x_vals)
+sol = solve_ivp(lambda t, x: eval_eom(x, r_vals, p_vals), (0.0, 1.0), x_vals,
+                method='LSODA')
 
 import matplotlib.pyplot as plt
 
