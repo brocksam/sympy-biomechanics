@@ -57,7 +57,7 @@ eval_eom = sm.lambdify((state, inputs, constants), (dqdt, dudt, dadt))
 p_vals = np.array([
     1.0,  # m [kg]
     9.81,  # g [m/s/s]
-    500.0,  # F_M_max
+    10.0,  # F_M_max
     0.18,  # l_M_opt
     0.17,  # l_T_slack
     10.0,  # v_M_max
@@ -100,7 +100,7 @@ def eval_rhs(t, x):
 
 from scipy.integrate import solve_ivp
 
-t0, tf = 0.0, 1.0
+t0, tf = 0.0, 2.0
 times = np.linspace(t0, tf, num=1001)
 sol = solve_ivp(eval_rhs,
                 (t0, tf),
