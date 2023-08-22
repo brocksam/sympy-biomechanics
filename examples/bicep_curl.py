@@ -12,8 +12,7 @@ import sympy as sm
 import sympy.physics.mechanics as me
 from sympy.physics.mechanics.actuator import LinearSpring, LinearDamper
 from sympy.physics.mechanics.pathway import LinearPathway, PathwayBase
-
-from biomechanics import (
+from sympy.physics._biomechanics import (
     FirstOrderActivationDeGroote2016,
     MusculotendonDeGroote2016,
 )
@@ -121,14 +120,14 @@ u1, u2 = me.dynamicsymbols('u1, u2')
 # k : linear spring coefficient
 # c : linear damper coefficient
 lA, lB, mA, mB, g, iAz, iBz = sm.symbols('lA, lB, mA, mB, g, iAz, iBz')
-k, c, r = sm.symbols('k, c, r')
+r = sm.symbols('r')
 
 # pack things up
 q = sm.Matrix([q1, q2])
 u = sm.Matrix([u1, u2])
 ud = u.diff(me.dynamicsymbols._t)
 ud_zerod = {udi: 0 for udi in ud}
-p = sm.Matrix([lA, lB, mA, mB, g, iAz, iBz, k, c, r])
+p = sm.Matrix([lA, lB, mA, mB, g, iAz, iBz, r])
 
 # N : inertial
 # A : humerous
@@ -152,7 +151,7 @@ B.set_ang_vel(A, u2*A.z)
 Am.set_pos(O, -lA/10*A.y)
 Ao.set_pos(O, -lA/2*A.y)
 P.set_pos(O, -lA*A.y)
-Bm.set_pos(P, -lB/10*B.y)
+Bm.set_pos(P, -lB/5*B.y)
 Bo.set_pos(P, -lB/2*B.y)
 Q.set_pos(P, -lB*B.y)
 
@@ -183,7 +182,7 @@ bicep_constants = {
     bicep._l_T_slack: 0.55,
     bicep._v_M_max: 10.0,
     bicep._alpha_opt: 0,
-    bicep._beta: 0.1,
+    bicep._beta: 100.1,
 }
 
 tricep_pathway = TricepPathway(A, B, Am, P, Bm, r, q2)
@@ -192,17 +191,17 @@ tricep = MusculotendonDeGroote2016('tricep', tricep_pathway, activation_dynamics
 tricep_constants = {
     tricep._F_M_max: 150,
     tricep._l_M_opt: 0.6,
-    tricep._l_T_slack: 0.95,
+    tricep._l_T_slack: 0.75,
     tricep._v_M_max: 10.0,
     tricep._alpha_opt: 0,
-    tricep._beta: 0.1,
+    tricep._beta: 100.1,
 }
 musculotendon_constants = {**bicep_constants, **tricep_constants}
 mt = sm.Matrix(list(musculotendon_constants.keys()))
 
-a = list(bicep.activation_dynamics.state_variables) + list(tricep.activation_dynamics.state_variables)
-e = list(bicep.activation_dynamics.control_variables) + list(tricep.activation_dynamics.control_variables)
-da = list(bicep.activation_dynamics.state_equations.values()) + list(tricep.activation_dynamics.state_equations.values())
+a = sm.Matrix.vstack(bicep.x, tricep.x)
+e = sm.Matrix.vstack(bicep.r, tricep.r)
+da = sm.Matrix.vstack(bicep.rhs(), tricep.rhs())
 eval_da = sm.lambdify((a, e), da, cse=True)
 
 gravA = me.Force(humerous, -mA*g*N.y)
@@ -290,7 +289,7 @@ def eval_rhs(t, x, p, mt):
 
     # evaluate the activation dynamics with the values of a, e
     e = eval_excitation(t)
-    da = eval_da(a, e)
+    da = eval_da(a, e).squeeze()
 
     # solve for u'
     ud = np.linalg.solve(-Md, np.squeeze(gd))
@@ -362,16 +361,14 @@ a_vals = np.array([
 
 #p = sm.Matrix([lA, lB, mA, mB, g, iAz, iBz, k, c, r])
 p_vals = np.array([
-    30.0,  # lA, m
-    30.0,  # lB, m
-    2.0,  # mA, kg
+    1.0,  # lA, m
+    1.0,  # lB, m
+    1.0,  # mA, kg
     1.0,  # mB, kg
     9.81,  # g, m/s**2
-    2.0/12.0*30.0**2,  # iAz, kg*m**2
-    1.0/12.0*30.0**2,  # iAz, kg*m**2
-    20.0,  # k, N/m
-    0.1,  # c, Nms
-    2.0,  # r, m
+    1.0/12.0*1.0**2,  # iAz, kg*m**2
+    1.0/12.0*1.0**2,  # iAz, kg*m**2
+    0.1,  # r, m
 ])
 
 #mt = sm.Matrix([F_M_max_bicep, l_M_opt_bicep, l_T_slack_bicep,
