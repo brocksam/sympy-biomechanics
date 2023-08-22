@@ -4,9 +4,8 @@ import sympy as sm
 import sympy.physics.mechanics as me
 from sympy.physics.mechanics.pathway import LinearPathway
 
-from biomechanics import (FirstOrderActivationDeGroote2016,
-                          MusculotendonDeGroote2016)
-from biomechanics.plot import plot_config, plot_traj
+from sympy.physics._biomechanics import (FirstOrderActivationDeGroote2016,
+                                         MusculotendonDeGroote2016)
 
 q, u = me.dynamicsymbols('q, u')
 m, g = sm.symbols('m, g')
@@ -41,14 +40,14 @@ block = me.Particle('block', P, m)
 kane = me.KanesMethod(N, (q,), (u,), kd_eqs=(u - q.diff(),))
 kane.kanes_equations((block,), (muscle.to_loads() + [gravity]))
 
-e = muscle.activation_dynamics.control_variables[0]
-a = muscle.activation_dynamics.state_variables[0]
+a = muscle.x[0]
+e = muscle.r[0]
 
 force = muscle.force.xreplace({q.diff(): u})
 
 dqdt = u
 dudt = kane.forcing[0]/m
-dadt = list(muscle.activation_dynamics.state_equations.values())[0]
+dadt = muscle.rhs()[0]
 
 state = [q, u, a]
 inputs = [e]
