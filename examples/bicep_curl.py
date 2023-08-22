@@ -13,7 +13,7 @@ import sympy.physics.mechanics as me
 from sympy.physics.mechanics.actuator import LinearSpring, LinearDamper
 from sympy.physics.mechanics.pathway import LinearPathway, PathwayBase
 
-from biomechanics import (
+from sympy.physics._biomechanics import (
     FirstOrderActivationDeGroote2016,
     MusculotendonDeGroote2016,
 )
@@ -200,9 +200,9 @@ tricep_constants = {
 musculotendon_constants = {**bicep_constants, **tricep_constants}
 mt = sm.Matrix(list(musculotendon_constants.keys()))
 
-a = list(bicep.activation_dynamics.state_variables) + list(tricep.activation_dynamics.state_variables)
-e = list(bicep.activation_dynamics.control_variables) + list(tricep.activation_dynamics.control_variables)
-da = list(bicep.activation_dynamics.state_equations.values()) + list(tricep.activation_dynamics.state_equations.values())
+a = bicep.x.col_join(tricep.x)
+e = bicep.r.col_join(tricep.r)
+da = bicep.rhs().col_join(tricep.rhs())
 eval_da = sm.lambdify((a, e), da, cse=True)
 
 gravA = me.Force(humerous, -mA*g*N.y)
@@ -290,7 +290,7 @@ def eval_rhs(t, x, p, mt):
 
     # evaluate the activation dynamics with the values of a, e
     e = eval_excitation(t)
-    da = eval_da(a, e)
+    da = eval_da(a, e).squeeze()
 
     # solve for u'
     ud = np.linalg.solve(-Md, np.squeeze(gd))
