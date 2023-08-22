@@ -6,12 +6,12 @@ from matplotlib.animation import FuncAnimation
 import sympy as sm
 import sympy.physics.mechanics as mec
 from sympy.physics.mechanics.pathway import LinearPathway
-
-from biomechanics import (
-    ExtensorPathway,
+from sympy.physics._biomechanics import (
     FirstOrderActivationDeGroote2016,
     MusculotendonDeGroote2016,
 )
+
+from biomechanics import ExtensorPathway
 from biomechanics.plot import plot_config, plot_traj
 
 
@@ -598,13 +598,13 @@ p = sm.Matrix([d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, g, ic11, ic22,
                l2, l3, l4, mc, md, me, mf, mg, mh, mi, mj, rf, rr])
 mt = sm.Matrix(list(musculotendon_constants.keys()))
 
-e = sm.Matrix(sum((list(m.control_variables) for m in musculotendons), start=[]))
+e = sm.Matrix.vstack(*[m.r for m in musculotendons])
 T = sm.Matrix([T4, T6, T7])
 r = sm.Matrix.vstack(T, e)
 u = sm.Matrix([u3, u4, u5, u6, u7, u8, u11, u12, u13, u14, u15, u16])
 q = sm.Matrix([q3, q4, q5, q6, q7, q8, q11, q12, q13, q14, q15, q16])
-a = sm.Matrix(sum((list(m.state_variables) for m in musculotendons), start=[]))
-ad = sm.Matrix(sum((list(m.state_equations.values()) for m in musculotendons), start=[]))
+a = sm.Matrix.vstack(*[m.x for m in musculotendons])
+ad = sm.Matrix.vstack(*[m.rhs() for m in musculotendons])
 
 points = (
     dn,  # rear contact
@@ -801,19 +801,19 @@ def eval_e_feedback(roll_rate):
     """
     # TODO : Check the signs on this feedback, why is it opposite than
     # expected?
-    max_roll_rate = 1.0
-    if roll_rate < 0.0:
-        normalized_roll_rate = -roll_rate / max_roll_rate
-        e_bicep_r = min(normalized_roll_rate, 0.99)
-        e_bicep_l = 0.01
-        e_tricep_r = 0.01
-        e_tricep_l = min(normalized_roll_rate, 0.99)
-    else:
+    max_roll_rate = 3.0
+    if roll_rate > 0.0:
         normalized_roll_rate = roll_rate / max_roll_rate
-        e_bicep_r = 0.01
-        e_bicep_l = min(normalized_roll_rate, 0.99)
-        e_tricep_r = min(normalized_roll_rate, 0.99)
-        e_tricep_l = 0.01
+        e_bicep_r = min(normalized_roll_rate, 1.0)
+        e_bicep_l = 0.0
+        e_tricep_r = 0.0
+        e_tricep_l = min(normalized_roll_rate, 1.0)
+    else:
+        normalized_roll_rate = -roll_rate / max_roll_rate
+        e_bicep_r = 0.0
+        e_bicep_l = min(normalized_roll_rate, 1.0)
+        e_tricep_r = min(normalized_roll_rate, 1.0)
+        e_tricep_l = 0.0
     return [e_bicep_r, e_bicep_l, e_tricep_r, e_tricep_l]
 
 
