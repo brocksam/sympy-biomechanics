@@ -44,6 +44,8 @@ kane.kanes_equations((block,), (muscle.to_loads() + [gravity]))
 e = muscle.activation_dynamics.control_variables[0]
 a = muscle.activation_dynamics.state_variables[0]
 
+force = muscle.force.xreplace({q.diff(): u})
+
 dqdt = u
 dudt = kane.forcing[0]/m
 dadt = list(muscle.activation_dynamics.state_equations.values())[0]
@@ -53,13 +55,16 @@ inputs = [e]
 constants = [m, g, F_M_max, l_M_opt, l_T_slack, v_M_max, alpha_opt, beta]
 
 eval_eom = sm.lambdify((state, inputs, constants), (dqdt, dudt, dadt))
+eval_force = sm.lambdify((state, constants), force)
+
+# q-l_T_slack is the length of the muscle
 
 p_vals = np.array([
-    1.0,  # m [kg]
+    0.5,  # m [kg]
     9.81,  # g [m/s/s]
     10.0,  # F_M_max
-    0.18,  # l_M_opt
-    0.17,  # l_T_slack
+    0.18,  # l_M_opt, length of muscle at which max force is produced
+    0.17,  # l_T_slack, always fixed (rigid tendon)
     10.0,  # v_M_max
     0.0,  # alpha_opt
     0.1,  # beta
@@ -75,32 +80,23 @@ r_vals = np.array([
     0.0,  # e
 ])
 
-print(dudt.doit().xreplace({
-    q: 0.17 + 0.18,
-    u: 0.0,
-    a: 0.0,
-    e: 0.0,
-    m: 1.0,
-    g: 9.81,
-    F_M_max: 500.0,
-    l_M_opt: 0.18,
-    l_T_slack: 0.17,
-    v_M_max: 10.0,
-    alpha_opt: 0.0,
-    beta: 0.1,
-}))
 print(eval_eom(x_vals, r_vals, p_vals))
 
 
 def eval_rhs(t, x):
 
-    r = np.array([0.5*t])
+    #if 0.5*t > 1.0:
+        #r = np.array([0.0])
+    #else:
+        #r = np.array([0.5*t])
+
+    r = np.array([1.0])
 
     return eval_eom(x, r, p_vals)
 
 from scipy.integrate import solve_ivp
 
-t0, tf = 0.0, 2.0
+t0, tf = 0.0, 10.0
 times = np.linspace(t0, tf, num=1001)
 sol = solve_ivp(eval_rhs,
                 (t0, tf),
@@ -108,9 +104,10 @@ sol = solve_ivp(eval_rhs,
 
 import matplotlib.pyplot as plt
 
-fig, axes = plt.subplots(3, 1)
-axes[0].plot(sol.t, sol.y[0], label=state[0])
+fig, axes = plt.subplots(4, 1, sharex=True)
+axes[0].plot(sol.t, sol.y[0] - p_vals[4], label='length of muscle')
 axes[1].plot(sol.t, sol.y[1], label=state[1])
 axes[2].plot(sol.t, sol.y[2], label=state[2])
-axes[0].legend(), axes[1].legend(), axes[2].legend()
+axes[3].plot(sol.t, eval_force(sol.y, p_vals).T, label='force')
+axes[0].legend(), axes[1].legend(), axes[2].legend(), axes[3].legend()
 fig.savefig('muscle-vs-gravity.png')
