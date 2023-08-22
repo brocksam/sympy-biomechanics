@@ -6,12 +6,12 @@ from matplotlib.animation import FuncAnimation
 import sympy as sm
 import sympy.physics.mechanics as me
 from sympy.physics.mechanics.pathway import LinearPathway
-
-from biomechanics import (
-    ExtensorPathway,
+from sympy.physics._biomechanics import (
     FirstOrderActivationDeGroote2016,
     MusculotendonDeGroote2016,
 )
+
+from biomechanics import ExtensorPathway
 from biomechanics.plot import plot_config, plot_traj
 
 # q1 : steer angle
@@ -135,9 +135,9 @@ bicep_pathway = LinearPathway(Cm, Dm)
 bicep_activation = FirstOrderActivationDeGroote2016.with_default_constants('bicep')
 bicep = MusculotendonDeGroote2016('bicep', bicep_pathway, activation_dynamics=bicep_activation)
 bicep_constants = {
-    bicep._F_M_max: 500.0,
-    bicep._l_M_opt: 0.6 * 0.3,
-    bicep._l_T_slack: 0.55 * 0.3,
+    bicep._F_M_max: 1000.0,
+    bicep._l_M_opt: 0.18,
+    bicep._l_T_slack: 0.16,
     bicep._v_M_max: 10.0,
     bicep._alpha_opt: 0.0,
     bicep._beta: 0.1,
@@ -147,9 +147,9 @@ tricep_pathway = ExtensorPathway(C.y, P3, -C.z, D.z, Cm, Dm, r, q4)
 tricep_activation = FirstOrderActivationDeGroote2016.with_default_constants('tricep')
 tricep = MusculotendonDeGroote2016('tricep', tricep_pathway, activation_dynamics=tricep_activation)
 tricep_constants = {
-    tricep._F_M_max: 500.0,
-    tricep._l_M_opt: 0.6 * 0.3,
-    tricep._l_T_slack: 0.65 * 0.3,
+    tricep._F_M_max: 1000.0,
+    tricep._l_M_opt: 0.18,
+    tricep._l_T_slack: 0.19,
     tricep._v_M_max: 10.0,
     tricep._alpha_opt: 0.0,
     tricep._beta: 0.1,
@@ -157,10 +157,10 @@ tricep_constants = {
 musculotendon_constants = {**bicep_constants, **tricep_constants}
 mt = sm.Matrix(list(musculotendon_constants.keys()))
 
-a = list(bicep.activation_dynamics.state_variables) + list(tricep.activation_dynamics.state_variables)
-e = list(bicep.activation_dynamics.control_variables) + list(tricep.activation_dynamics.control_variables)
-da = list(bicep.activation_dynamics.state_equations.values()) + list(tricep.activation_dynamics.state_equations.values())
-eval_da = sm.lambdify((e, a), da, cse=True)
+a = sm.Matrix.vstack(bicep.x, tricep.x)
+e = sm.Matrix.vstack(bicep.r, tricep.r)
+da = sm.Matrix.vstack(bicep.rhs(), tricep.rhs())
+eval_da = sm.lambdify((a, e), da, cse=True)
 
 gravA = me.Force(humerous, mC*g*N.z)
 gravB = me.Force(radius, mD*g*N.z)
@@ -194,9 +194,9 @@ kane = me.KanesMethod(
 Fr, Frs = kane.kanes_equations()
 
 p_vals = np.array([
-    -0.31,  # dx [m]
+    -0.33,  # dx [m]
     0.15,  # dy [m]
-    -0.31,  # dz [m]
+    -0.33,  # dz [m]
     0.2,   # lA [m]
     0.3,  # lC [m]
     0.3,  # lD [m]
@@ -204,8 +204,8 @@ p_vals = np.array([
     2.3,  # mC [kg]
     1.7,  # mD [kg]
     9.81,  # g [m/s/s]
-    10.0,  # kA [Nm/rad]
-    0.2,  # cA [Nms/rad]
+    0.0,  # kA [Nm/rad]
+    0.1,  # cA [Nms/rad]
     0.03,  # r [m]
 ])
 mt_vals = np.array(list(musculotendon_constants.values()))
@@ -275,8 +275,18 @@ def eval_excitation(t):
         Excitation of the bicep and tricep at time t.
 
     """
-    e_bicep = 0.01 if t < 0.1 else 0.9
-    e_tricep = 0.01 if t < 0.1 else 0.5
+    if t < 1.0:
+        e_bicep = 0.0
+        e_tricep = 0.0
+    elif t < 2.0:
+        e_bicep = 1.0
+        e_tricep = 0.0
+    elif t < 3.0:
+        e_bicep = 0.0
+        e_tricep = 1.0
+    else:
+        e_bicep = 0.5
+        e_tricep = 0.5
     e = np.array([e_bicep, e_tricep])
     return e
 
@@ -315,7 +325,7 @@ def eval_eom(t, x, xd, residual, constants):
     residual[4] = eval_kane(ud, u, q, a, p, mt).squeeze()  # only eq for independent u
     residual[5:8] = eval_holonomic(q, p).squeeze()
     e = eval_excitation(t)
-    residual[8:10] = eval_da(e, a) - ad
+    residual[8:10] = eval_da(a, e).squeeze() - ad
 
 
 
@@ -328,10 +338,10 @@ solver = dae('ida',
              user_data=(p_vals, mt_vals),
              old_api=False)
 
-t0, tF = 0.0, 2.0
+t0, tF = 0.0, 4.0
 x0 = np.hstack((q_vals, u_vals, a_vals))
 ud0 = np.linalg.solve(*eval_Mdgd(u_vals, q_vals, a_vals, p_vals, mt_vals)).squeeze()
-da0 = eval_da(eval_excitation(t0), a_vals)
+da0 = eval_da(eval_excitation(t0), a_vals).squeeze()
 xd0 = np.hstack((u_vals, ud0, da0))
 resid = np.empty(10)
 eval_eom(0.01, x0, xd0, resid, (p_vals, mt_vals))
