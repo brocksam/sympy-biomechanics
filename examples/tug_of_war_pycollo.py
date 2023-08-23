@@ -170,8 +170,8 @@ problem.settings.quadrature_method = "lobatto"
 problem.settings.max_mesh_iterations = 1
 problem.settings.scaling_method = "bounds"
 
-phase_A.mesh.number_mesh_section_nodes = 4
-phase_A.mesh.number_mesh_sections = 10
+phase_A.mesh.number_mesh_section_nodes = 8
+phase_A.mesh.number_mesh_sections = 100
 
 problem.solve()
 
