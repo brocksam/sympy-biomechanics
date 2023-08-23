@@ -63,8 +63,8 @@ gravD = me.Force(l_arm, mD*g*N.z)
 
 bicep_pathway = me.LinearPathway(Cm, Dm)
 
-#import sympy.physics.biomechanics as bm
-import biomechanics as bm
+import sympy.physics._biomechanics as bm
+#import biomechanics as bm
 
 bicep_activation = bm.FirstOrderActivationDeGroote2016.with_default_constants('bicep')
 
@@ -227,46 +227,20 @@ me.find_dynamicsymbols(kane.forcing)
 
 kane.forcing.free_symbols
 
-bicep.activation_dynamics.state_equations
+bicep.rhs()
 
-tricep.activation_dynamics.state_equations
+tricep.rhs()
 
-# TODO : these are dictionaries and we don't have easy access to the key, so
-# not really a clean way to extract the equation it doesn't mesh well with the
-# rest of mechanics API. If an acutator has dynamics, and thus state, then the
-# general form of the equations should be something like:
-# M(x, r, t) x' = F(x, r, t)
-# x being the state vector (sympy column matrix)
-# r being the input vector (sympy column matrix)
-# To mesh with .mechanics the Actuator should likely have these
-# methods/attributes:
-# Actuator.x or Acuator.state_vars returns an ordered column matrix of
-# functions of time that represent the state variables
-# Acutator.r or Acutors.input_vars returns and ordered columan matrix of
-# functions of time that represnet the input variabls (I use r here because we
-# use u for generalized
-# speeds in mechanics
-# Acutator.p Acuator.constants returns a columan matrix of orderd non-time
-# varying symbols present in M and F.
-# Actuator.M returns a matrix matching the order of x
-# Actuator.F returns a matrix matching the order of x
-# Acuator.rhs() returns a matrix that is solve(self.M, self.F) matching the
-# order of x
-
-dadt = sm.Matrix(list(bicep.activation_dynamics.state_equations.values())).col_join(
-    sm.Matrix(list(tricep.activation_dynamics.state_equations.values())))
+dadt = bicep.rhs().col_join(tricep.rhs())
 
 q, u = kane.q, kane.u
 q, u
 
-a = sm.Matrix(bicep.activation_dynamics.state_variables).col_join(
-    sm.Matrix(tricep.activation_dynamics.state_variables))
+a = bicep.x.col_join(tricep.x)
 
 x = q.col_join(u).col_join(a)
 
-
-e = sm.Matrix(bicep.activation_dynamics.control_variables).col_join(
-    sm.Matrix(tricep.activation_dynamics.control_variables))
+e = bicep.r.col_join(tricep.r)
 e
 
 p = sm.Matrix([
