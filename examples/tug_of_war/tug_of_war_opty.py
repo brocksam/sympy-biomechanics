@@ -12,6 +12,8 @@ from sympy.physics._biomechanics import (
     MusculotendonDeGroote2016,
 )
 
+from tug_of_war_plot import TugOfWarData, plot_solution_opty
+
 
 WALL_OFFSET = 0.35
 BLOCK_SIZE = 0.05
@@ -20,7 +22,7 @@ MASS = 20
 DURATION = 0.5
 DISTANCE = 0.08
 
-NUM_NODES = 10000
+NUM_NODES = 10_000
 INTERVAL_VALUE = DURATION / (NUM_NODES - 1)
 
 OPTIMAL_FIBER_LENGTH = 0.25
@@ -155,7 +157,8 @@ problem = Problem(
     INTERVAL_VALUE,
     known_parameter_map=par_map,
     instance_constraints=instance_constraints,
-    bounds=bounds)
+    bounds=bounds,
+)
 
 # Use a random positive initial guess.
 initial_guess = np.random.randn(problem.num_free)
@@ -163,70 +166,7 @@ initial_guess = np.random.randn(problem.num_free)
 # Find the optimal solution.
 sol, info = problem.solve(initial_guess)
 
-# Make some plots
-data = {}
-x_slice = slice(0, NUM_NODES)
-v_slice = slice(NUM_NODES, 2*NUM_NODES)
-musc_1_a_slice = slice(2*NUM_NODES, 3*NUM_NODES)
-musc_2_a_slice = slice(3*NUM_NODES, 4*NUM_NODES)
-musc_1_e_slice = slice(4*NUM_NODES, 5*NUM_NODES)
-musc_2_e_slice = slice(5*NUM_NODES, 6*NUM_NODES)
-data[t] = np.concatenate([np.linspace(0.0, DURATION, NUM_NODES), np.linspace(DURATION, 2*DURATION, NUM_NODES)])
-data[x] = np.concatenate([sol[x_slice], -sol[x_slice]])
-data[v] = np.concatenate([sol[v_slice], -sol[v_slice]])
-data[musc_1.a] = np.concatenate([sol[musc_1_a_slice], sol[musc_2_a_slice]])
-data[musc_2.a] = np.concatenate([sol[musc_2_a_slice], sol[musc_1_a_slice]])
-data[musc_1.e] = np.concatenate([sol[musc_1_e_slice], sol[musc_2_e_slice]])
-data[musc_2.e] = np.concatenate([sol[musc_2_e_slice], sol[musc_1_e_slice]])
-
-kdes = {x.diff(me.dynamicsymbols._t): v}
-inputs = [x, v, musc_1.a, musc_2.a, musc_1.e, musc_2.e]
-outputs = [
-    musc_1._F_T_tilde.doit().subs(kdes).xreplace(par_map),
-    musc_2._F_T_tilde.doit().subs(kdes).xreplace(par_map),
-    musc_1._l_M_tilde.doit().subs(kdes).xreplace(par_map),
-    musc_2._l_M_tilde.doit().subs(kdes).xreplace(par_map),
-]
-eval_other = sm.lambdify(inputs, outputs, cse=True)
-musc_1_F_T_tilde, musc_2_F_T_tilde, musc_1_l_M_tilde, musc_2_l_M_tilde = eval_other(
-    data[x],
-    data[v],
-    data[musc_1.a],
-    data[musc_2.a],
-    data[musc_1.e],
-    data[musc_2.e],
-)
-
-plt.figure()
-plt.plot(data[t], data[x], color="tab:blue", label="Block Position")
-plt.plot(data[t], data[v], color="tab:olive", label="Block Velocity")
-plt.title("Dynamics States")
-plt.legend()
-
-plt.figure()
-plt.plot(data[t], musc_1_F_T_tilde, color="tab:brown", label="Muscle 1")
-plt.plot(data[t], musc_2_F_T_tilde, color="tab:grey", label="Muscle 2")
-plt.title("Normalised Tendon Forces")
-plt.legend()
-
-plt.figure()
-plt.plot(data[t], musc_1_l_M_tilde, color="tab:red", label="Muscle 1")
-plt.plot(data[t], musc_2_l_M_tilde, color="tab:pink", label="Muscle 2")
-plt.title("Normalised Fibre Lengths")
-plt.legend()
-
-plt.figure()
-plt.plot(data[t], data[musc_1.a], color="tab:green", label="Muscle 1")
-plt.plot(data[t], data[musc_2.a], color="tab:cyan", label="Muscle 2")
-plt.title("Muscle Activations")
-plt.legend()
-
-plt.figure()
-plt.plot(data[t], data[musc_1.e], color="tab:purple", label="Muscle 1")
-plt.plot(data[t], data[musc_2.e], color="tab:pink", label="Muscle 2")
-plt.title("Muscle Excitations")
-plt.legend()
-
-plt.show()
-
+# Plot the solution
+data = TugOfWarData(x, v, musc_1, musc_2, par_map, NUM_NODES, DURATION)
+plot_solution_opty(sol, data)
 plt.show()

@@ -17,6 +17,8 @@ from sympy.physics._biomechanics import (
     MusculotendonDeGroote2016,
 )
 
+from tug_of_war_plot import TugOfWarData, plot_solution_pycollo
+
 
 WALL_OFFSET = 0.35
 BLOCK_SIZE = 0.05
@@ -175,61 +177,7 @@ phase_A.mesh.number_mesh_sections = 100
 
 problem.solve()
 
-data = {}
-sol = problem.solution
-data[t] = np.concatenate([sol._time_[0][:-1], np.array([t + 0.5 for t in sol._time_[0]])])
-data[x] = np.concatenate([sol.state[0][0][:-1], -sol.state[0][0]])
-data[v] = np.concatenate([sol.state[0][1][:-1], -sol.state[0][1]])
-data[musc_1.a] = np.concatenate([sol.state[0][2][:-1], sol.state[0][3]])
-data[musc_2.a] = np.concatenate([sol.state[0][3][:-1], sol.state[0][2]])
-data[musc_1.e] = np.concatenate([sol.control[0][0][:-1], sol.control[0][1]])
-data[musc_2.e] = np.concatenate([sol.control[0][1][:-1], sol.control[0][0]])
-
-inputs = [x, v, musc_1.a, musc_2.a, musc_1.e, musc_2.e]
-outputs = [
-    musc_1._F_T_tilde.doit().subs(kdes).xreplace(problem.auxiliary_data),
-    musc_2._F_T_tilde.doit().subs(kdes).xreplace(problem.auxiliary_data),
-    musc_1._l_M_tilde.doit().subs(kdes).xreplace(problem.auxiliary_data),
-    musc_2._l_M_tilde.doit().subs(kdes).xreplace(problem.auxiliary_data),
-]
-eval_other = sm.lambdify(inputs, outputs, cse=True)
-musc_1_F_T_tilde, musc_2_F_T_tilde, musc_1_l_M_tilde, musc_2_l_M_tilde = eval_other(
-    data[x],
-    data[v],
-    data[musc_1.a],
-    data[musc_2.a],
-    data[musc_1.e],
-    data[musc_2.e],
-)
-
-plt.figure()
-plt.plot(data[t], data[x], color="tab:blue", label="Block Position")
-plt.plot(data[t], data[v], color="tab:olive", label="Block Velocity")
-plt.title("Dynamics States")
-plt.legend()
-
-plt.figure()
-plt.plot(data[t], musc_1_F_T_tilde, color="tab:brown", label="Muscle 1")
-plt.plot(data[t], musc_2_F_T_tilde, color="tab:grey", label="Muscle 2")
-plt.title("Normalised Tendon Forces")
-plt.legend()
-
-plt.figure()
-plt.plot(data[t], musc_1_l_M_tilde, color="tab:red", label="Muscle 1")
-plt.plot(data[t], musc_2_l_M_tilde, color="tab:pink", label="Muscle 2")
-plt.title("Normalised Fibre Lengths")
-plt.legend()
-
-plt.figure()
-plt.plot(data[t], data[musc_1.a], color="tab:green", label="Muscle 1")
-plt.plot(data[t], data[musc_2.a], color="tab:cyan", label="Muscle 2")
-plt.title("Muscle Activations")
-plt.legend()
-
-plt.figure()
-plt.plot(data[t], data[musc_1.e], color="tab:purple", label="Muscle 1")
-plt.plot(data[t], data[musc_2.e], color="tab:pink", label="Muscle 2")
-plt.title("Muscle Excitations")
-plt.legend()
-
+# Plot the solution
+data = TugOfWarData(x, v, musc_1, musc_2, problem.auxiliary_data)
+plot_solution_pycollo(problem.solution, data)
 plt.show()
