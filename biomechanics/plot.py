@@ -73,23 +73,23 @@ def plot_config(x, y, z, xlim=(-0.5, 0.5), ylim=(-0.5, 0.5), zlim=(-0.5, 0.5)):
     ax_3d.set_ylabel('y')
     ax_3d.set_zlabel('z')
 
-    # front view
-    lines_front, = ax_front.plot(y, z, **line_prop)
-    ax_front.set_xlim(ylim)
-    ax_front.set_ylim(zlim)
-    ax_front.set_title('Front View')
-    ax_front.set_xlabel('y')
-    ax_front.set_ylabel('z')
-    ax_front.set_aspect('equal')
-
     # right view
-    lines_right, = ax_right.plot(x, z, **line_prop)
-    ax_right.set_xlim(xlim)
+    lines_right, = ax_right.plot(y, z, **line_prop)
+    ax_right.set_xlim(ylim)
     ax_right.set_ylim(zlim)
     ax_right.set_title('Right View')
-    ax_right.set_xlabel('x')
+    ax_right.set_xlabel('y')
     ax_right.set_ylabel('z')
     ax_right.set_aspect('equal')
+
+    # front view
+    lines_front, = ax_front.plot(x, z, **line_prop)
+    ax_front.set_xlim(xlim)
+    ax_front.set_ylim(zlim)
+    ax_front.set_title('Front View')
+    ax_front.set_xlabel('x')
+    ax_front.set_ylabel('z')
+    ax_front.set_aspect('equal')
 
     fig.tight_layout()
 

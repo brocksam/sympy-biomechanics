@@ -841,7 +841,7 @@ def gen_pt_coord_func(frame, pts, q, p):
 eval_point_coords = gen_pt_coord_func(N, points, q, p)
 
 plot_data = plot_config(*eval_point_coords(q_vals, p_vals),
-                        xlim=(-5.0, 5.0), ylim=(-10.0, 0.0), zlim=(0, 1.5))
+                        xlim=(-10.0, 10.0), ylim=(-30.0, 0.0), zlim=(0, 10.0))
 fig, lines_top, lines_3d, lines_front, lines_right = plot_data
 
 ud = sm.Matrix([u1d, u2d, u3d, u4d, u5d, u6d, u7d, u8d, u11d, u12d, u13d, u14d,
@@ -960,8 +960,8 @@ def animate(i):
     x, y, z = eval_point_coords(xs[i, :14], p_vals)
     lines_top.set_data(x, y)
     lines_3d.set_data_3d(x, y, z)
-    lines_front.set_data(y, z)
-    lines_right.set_data(x, z)
+    lines_right.set_data(y, z)
+    lines_front.set_data(x, z)
 
 
 ani = FuncAnimation(fig, animate, len(ts))
