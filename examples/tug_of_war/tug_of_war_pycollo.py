@@ -15,6 +15,7 @@ import sympy.physics.mechanics as me
 from sympy.physics._biomechanics import (
     FirstOrderActivationDeGroote2016,
     MusculotendonDeGroote2016,
+    MusculotendonFormulation,
 )
 
 from tug_of_war_plot import TugOfWarData, plot_solution_pycollo
@@ -36,6 +37,8 @@ FIBER_DAMPING_COEFFICIENT = 0.1
 ACTIVATION_TIME_CONSTANT = 0.055
 DEACTIVATION_TIME_CONSTANT = 0.065
 SMOOTHING_RATE = 10
+# MUSCULOTENDON_FORMULATION = MusculotendonFormulation.RIGID_TENDON
+MUSCULOTENDON_FORMULATION = MusculotendonFormulation.FIBER_LENGTH_EXPLICIT
 
 x, v = me.dynamicsymbols("x, v")
 m, g = sm.symbols("m, g")
@@ -65,6 +68,7 @@ musc_1 = MusculotendonDeGroote2016(
     '1',
     musc_1_pathway,
     musc_1_activation,
+    musculotendon_dynamics=MUSCULOTENDON_FORMULATION,
     tendon_slack_length=l_T_slack,
     peak_isometric_force=F_M_max,
     optimal_fiber_length=l_M_opt,
@@ -87,6 +91,7 @@ musc_2 = MusculotendonDeGroote2016(
     '2',
     musc_2_pathway,
     musc_2_activation,
+    musculotendon_dynamics=MUSCULOTENDON_FORMULATION,
     tendon_slack_length=l_T_slack,
     peak_isometric_force=F_M_max,
     optimal_fiber_length=l_M_opt,
@@ -98,13 +103,14 @@ musc_2 = MusculotendonDeGroote2016(
 problem = pycollo.OptimalControlProblem("Tug of War")
 phase_A = problem.new_phase("A")
 
-phase_A.state_variables = (x, v) + (musc_1.x[0], ) + (musc_2.x[0], )
-phase_A.control_variables = (musc_1.r[0], ) + (musc_2.r[0], )
+phase_A.state_variables = (x, v) + tuple(musc_1.x) + tuple(musc_2.x)
+phase_A.control_variables = tuple(musc_1.r) + tuple(musc_2.r)
+
 phase_A.state_equations = {
     x: v,
     v: (musc_2.force.doit().subs(kdes) - musc_1.force.doit().subs(kdes)) / m,
-    musc_1.x[0]: musc_1.rhs()[0],
-    musc_2.x[0]: musc_2.rhs()[0],
+    **dict(zip(musc_1.x, musc_1.rhs())),
+    **dict(zip(musc_2.x, musc_2.rhs())),
 }
 
 phase_A.integrand_functions = [
@@ -113,15 +119,25 @@ phase_A.integrand_functions = [
 
 phase_A.bounds.initial_time = 0
 phase_A.bounds.final_time = T / 2
+musculotendon_bounds_state_variables = {}
+for musc in (musc_1, musc_2):
+    for state_var in musc.state_vars:
+        if state_var.name[0] == 'a':
+            musculotendon_bounds_state_variables[state_var] = [0, 1]
+        else:
+            musculotendon_bounds_state_variables[state_var] = [0.01, 1.99]
 phase_A.bounds.state_variables = {
     x: [-WALL_OFFSET, WALL_OFFSET],
     v: [-2, 2],
-    musc_1.a: [0, 1],
-    musc_2.a: [0, 1]
+    **musculotendon_bounds_state_variables,
 }
+musculotendon_bounds_control_variables = {}
+for musc in (musc_1, musc_2):
+    for control_var in musc.input_vars:
+        if control_var.name[0] == 'e':
+            musculotendon_bounds_control_variables[control_var] = [0, 1]
 phase_A.bounds.control_variables = {
-    musc_1.e: [0, 1],
-    musc_2.e: [0, 1],
+    **musculotendon_bounds_control_variables,
 }
 phase_A.bounds.integral_variables = [[0, 1]]
 phase_A.bounds.initial_state_constraints = {
@@ -134,25 +150,42 @@ phase_A.bounds.final_state_constraints = {
 }
 
 phase_A.guess.time = [0, DURATION / 2]
+phase_A_guess_state_variables = []
+for musc in (musc_1, musc_2):
+    for state_var in musc.state_vars:
+        if state_var.name[0] == 'l' and musc == musc_1:
+            phase_A_guess_state_variables.append([0.68, 1.28])
+        elif state_var.name[0] == 'l' and musc == musc_2:
+            phase_A_guess_state_variables.append([1.28, 0.68])
+        else:
+            phase_A_guess_state_variables.append([0, 0])
 phase_A.guess.state_variables = [
     [-DISTANCE, DISTANCE],
     [0, 0],
-    [0, 0],
-    [0, 0],
+    *phase_A_guess_state_variables,
 ]
+phase_A_guess_control_variables = []
+for musc in (musc_1, musc_2):
+    for control_var in musc.input_vars:
+        phase_A_guess_control_variables.append([0, 0])
 phase_A.guess.control_variables = [
-    [0, 0],
-    [0, 0],
+    *phase_A_guess_control_variables,
 ]
 phase_A.guess.integral_variables = [0]
 
 problem.objective_function = 2 * phase_A.integral_variables[0]
 
-problem.endpoint_constraints = [
-    phase_A.initial_state_variables.a_1 - phase_A.final_state_variables.a_2,
-    phase_A.initial_state_variables.a_2 - phase_A.final_state_variables.a_1,
-]
-problem.bounds.endpoint_constraints = [[0, 0], [0, 0]]
+problem_endpoint_constraints = []
+problem_bounds_endpoint_constraints = []
+for musc_a, musc_b in ((musc_1, musc_2), (musc_2, musc_1)):
+    for state_var_a, state_var_b in zip(musc_a.x, musc_b.x):
+        state_var_t0 = phase_A.initial_state_variables[state_var_a]
+        state_var_tF = phase_A.final_state_variables[state_var_b]
+        problem_endpoint_constraints.append(state_var_t0 - state_var_tF)
+        problem_bounds_endpoint_constraints.append([0, 0])
+
+problem.endpoint_constraints = problem_endpoint_constraints
+problem.bounds.endpoint_constraints = problem_bounds_endpoint_constraints
 
 problem.auxiliary_data = {
     m: MASS,
@@ -172,8 +205,8 @@ problem.settings.quadrature_method = "lobatto"
 problem.settings.max_mesh_iterations = 1
 problem.settings.scaling_method = "bounds"
 
-phase_A.mesh.number_mesh_section_nodes = 8
-phase_A.mesh.number_mesh_sections = 100
+phase_A.mesh.number_mesh_section_nodes = 4
+phase_A.mesh.number_mesh_sections = 10
 
 problem.solve()
 
