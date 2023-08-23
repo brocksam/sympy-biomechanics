@@ -1,19 +1,22 @@
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
 import sympy as sm
 import sympy.physics.mechanics as me
+from sympy.core.function import AppliedUndef
+from sympy.physics._biomechanics import (
+    MusculotendonDeGroote2016,
+)
 
 
 @dataclass
 class TugOfWarData:
-    x: Any
-    v: Any
-    musc_1: Any
-    musc_2: Any
+    x: AppliedUndef
+    v: AppliedUndef
+    musc_1: MusculotendonDeGroote2016
+    musc_2: MusculotendonDeGroote2016
     replacements: dict | OrderedDict
     NUM_NODES: int | None = None
     DURATION: float | None = None
