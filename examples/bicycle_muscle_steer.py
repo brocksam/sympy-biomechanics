@@ -463,7 +463,7 @@ l_T_slack_bicep, l_T_slack_tricep = sm.symbols('l_T_slack_bicep, l_T_slack_trice
 v_M_max, alpha_opt, beta = sm.symbols('v_M_max, alpha_opt, beta')
 
 bicep_right_pathway = LinearPathway(gm, hm)
-bicep_right_activation = FirstOrderActivationDeGroote2016.with_default_constants('bi_r')
+bicep_right_activation = FirstOrderActivationDeGroote2016.with_defaults('bi_r')
 bicep_right = MusculotendonDeGroote2016(
     'bi_r',
     bicep_right_pathway,
@@ -477,7 +477,7 @@ bicep_right = MusculotendonDeGroote2016(
 )
 
 bicep_left_pathway = LinearPathway(im, jm)
-bicep_left_activation = FirstOrderActivationDeGroote2016.with_default_constants('bi_l')
+bicep_left_activation = FirstOrderActivationDeGroote2016.with_defaults('bi_l')
 bicep_left = MusculotendonDeGroote2016(
     'bi_l',
     bicep_left_pathway,
@@ -491,7 +491,7 @@ bicep_left = MusculotendonDeGroote2016(
 )
 
 tricep_right_pathway = ExtensorPathway(G['2'], gh, -G['3'], H['3'], gm, hm, d8/10, q13)
-tricep_right_activation = FirstOrderActivationDeGroote2016.with_default_constants('tri_r')
+tricep_right_activation = FirstOrderActivationDeGroote2016.with_defaults('tri_r')
 tricep_right = MusculotendonDeGroote2016(
     'tri_r',
     tricep_right_pathway,
@@ -505,7 +505,7 @@ tricep_right = MusculotendonDeGroote2016(
 )
 
 tricep_left_pathway = ExtensorPathway(I['2'], ji, -I['3'], J['3'], im, jm, d8/10, q16)
-tricep_left_activation = FirstOrderActivationDeGroote2016.with_default_constants('tri_l')
+tricep_left_activation = FirstOrderActivationDeGroote2016.with_defaults('tri_l')
 tricep_left = MusculotendonDeGroote2016(
     'tri_l',
     tricep_left_pathway,

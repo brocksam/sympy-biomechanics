@@ -92,7 +92,7 @@ class ExtensorPathway(PathwayBase):
         """
         return self.radius * self.coordinate.diff(dynamicsymbols._t)
 
-    def compute_loads(self, force_magnitude):
+    def to_loads(self, force_magnitude):
         """Loads in the correct format to be supplied to `KanesMethod`.
 
         Forces applied to origin, insertion, and P from the muscle wrapped over
