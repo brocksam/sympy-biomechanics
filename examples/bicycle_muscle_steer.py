@@ -122,8 +122,12 @@ A.orient(N, 'Axis', (q3, N['3']))
 B.orient(A, 'Axis', (q4, A['1']))
 # rear frame pitch
 C.orient(B, 'Axis', (q5, B['2']))
+# rear wheel angle
+D.orient(C, 'Axis', (q6, C['2']))
 # front frame steer
 E.orient(C, 'Axis', (q7, C['3']))
+# front wheel angle
+F.orient(E, 'Axis', (q8, E['2']))
 # right upper arm
 G.orient_body_fixed(C, (q11, q12, 0), '232')
 # right lower arm
@@ -192,37 +196,14 @@ T4, T6, T7 = mec.dynamicsymbols('T4 T6 T7')
 
 print('Defining position vectors.')
 
-point_defs = {
-    'dn': ('rear wheel contact point', None, None),
-    'do': ('rear wheel (mass) center', 'dn', -rr*B['3']),
-    'co': ('rear frame mass center', 'do', l1*C['1'] + l2*C['3']),
-    'ce': ('steer axis point', 'do', d1*C['1']),
-    'cgr': ('right shoulder', 'do', d4*C['1'] + d5*C['2'] + d6*C['3']),
-    'gh': ('right elbow', 'cgr', d7*G['3']),
-    'go': ('right upper arm mass center', 'cgr', d7/2*G['3']),
-    'gm': ('right upper arm muscle attachment', 'cgr', 1*d7/10*G['3']),
-    'hm': ('right lower arm muscle attachment', 'gh', 2*d8/10*H['3']),
-    'ho': ('right lower arm mass center', 'gh', d8/2*H['3']),
-    'hc': ('right hand', 'gh', d8*H['3']),
-    'cgl': ('left shoulder', 'do', d4*C['1'] - d5*C['2'] + d6*C['3']),
-    'ji': ('left elbow', 'cgl', d7*I['3']),
-    'io': ('left upper arm mass center', 'cgl', d7/2*I['3']),
-    'im': ('left upper arm muscle attachment', 'cgl', 1*d7/10*I['3']),
-    'jm': ('left lower arm muscle attachment', 'ji', 2*d8/10*J['3']),
-    'jo': ('left elbow to lower arm mass center', 'ji', d8/2*J['3']),
-    'jc': ('left hand', 'ji', d8*J['3']),
-    'fo': ('front wheel center', 'ce', d2*E['3'] + d3*E['1']),
-    'ch_r': ('right handgrip', 'ce', d9*E['1'] + d10*E['2'] + d11*E['3']),
-    'ch_l': ('left handgrip', 'ce', d9*E['1'] - d10*E['2'] + d11*E['3']),
-    'eo': ('front frame center', 'fo', l3*E['1'] + l4*E['3']),
-    'fn': ('front wheel contact point', 'fo',
-           rf*E['2'].cross(A['3']).cross(E['2']).normalize()),
-}
+# ground origin
+O = mec.Point('O')
 
 # rear wheel contact point
 dn = mec.Point('dn')
+dn.set_pos(O, q1*N['1'] + q2*N['2'])
 
-# newtonian origin to rear wheel center
+# rear wheel contact point to rear wheel center
 do = mec.Point('do')
 do.set_pos(dn, -rr*B['3'])
 
@@ -280,7 +261,7 @@ io.set_pos(cgl, d7/2*I['3'])
 im = mec.Point('im')
 im.set_pos(cgl, 1*d7/10*I['3'])
 
-# left elbow to lower arm muscle atachment
+# left elbow to lower arm muscle attachment
 jm = mec.Point('jm')
 jm.set_pos(ji, 2*d8/10*J['3'])
 
@@ -334,10 +315,14 @@ print(list(sm.ordered(mec.find_dynamicsymbols(holonomic))))
 print('Defining kinematical differential equations.')
 
 kinematical = [
+    q1.diff(t) - u1,  # rear wheel contact x location
+    q2.diff(t) - u2,  # rear wheel contact y location
     q3.diff(t) - u3,  # yaw
     q4.diff(t) - u4,  # roll
     q5.diff(t) - u5,  # pitch
+    q6.diff(t) - u6,  # rear wheel rotation
     q7.diff(t) - u7,  # steer
+    q8.diff(t) - u8,  # front wheel rotation
     q11.diff(t) - u11,  # right shoulder extension
     q12.diff(t) - u12,  # right shoulder rotation
     q13.diff(t) - u13,  # right elbow extension
@@ -372,12 +357,13 @@ J.set_ang_vel(I, u16*I['2'])
 
 print('Defining linear velocities.')
 
+O.set_vel(N, 0)
+
 # rear wheel contact stays in ground plane and does not slip
-# TODO : Investigate setting to sm.S(0) and 0.
-dn.set_vel(N, 0.0*N['1'])
+dn.set_vel(N, u1*N['1'] + u2*N['2'])
 
 # mass centers
-do.v2pt_theory(dn, N, D)
+do.set_vel(N, do.pos_from(O).dt(N).xreplace({q1.diff(): u1, q2.diff(): u2}))
 co.v2pt_theory(do, N, C)
 ce.v2pt_theory(do, N, C)
 fo.v2pt_theory(ce, N, E)
@@ -398,8 +384,9 @@ ji.v2pt_theory(cgl, N, I)
 jc.v2pt_theory(ji, N, J)
 ch_l.v2pt_theory(fo, N, F)
 
-# front wheel contact velocity
-fn.v2pt_theory(fo, N, F)
+# rear and front wheel contact velocity
+N_v_dn = do.vel(N) + D.ang_vel_in(N).cross(dn.pos_from(do))
+N_v_fn = fo.vel(N) + F.ang_vel_in(N).cross(fn.pos_from(fo))
 
 ####################
 # Motion Constraints
@@ -408,9 +395,11 @@ fn.v2pt_theory(fo, N, F)
 print('Defining nonholonomic constraints.')
 
 nonholonomic = sm.Matrix([
-    fn.vel(N).dot(A['1']),
-    fn.vel(N).dot(A['3']),
-    fn.vel(N).dot(A['2']),
+    N_v_dn.dot(A['1']),
+    N_v_dn.dot(A['2']),
+    N_v_fn.dot(A['1']),
+    N_v_fn.dot(A['3']),
+    N_v_fn.dot(A['2']),
     holonomic_handr[0].diff(t),
     holonomic_handr[1].diff(t),
     holonomic_handr[2].diff(t),
@@ -420,8 +409,6 @@ nonholonomic = sm.Matrix([
 ])
 
 
-print('The nonholonomic constraints are a function of these dynamic variables:')
-print(list(sm.ordered(mec.find_dynamicsymbols(sm.Matrix(nonholonomic)))))
 
 #########
 # Inertia
@@ -476,7 +463,7 @@ l_T_slack_bicep, l_T_slack_tricep = sm.symbols('l_T_slack_bicep, l_T_slack_trice
 v_M_max, alpha_opt, beta = sm.symbols('v_M_max, alpha_opt, beta')
 
 bicep_right_pathway = LinearPathway(gm, hm)
-bicep_right_activation = FirstOrderActivationDeGroote2016.with_default_constants('bi_r')
+bicep_right_activation = FirstOrderActivationDeGroote2016.with_defaults('bi_r')
 bicep_right = MusculotendonDeGroote2016(
     'bi_r',
     bicep_right_pathway,
@@ -490,7 +477,7 @@ bicep_right = MusculotendonDeGroote2016(
 )
 
 bicep_left_pathway = LinearPathway(im, jm)
-bicep_left_activation = FirstOrderActivationDeGroote2016.with_default_constants('bi_l')
+bicep_left_activation = FirstOrderActivationDeGroote2016.with_defaults('bi_l')
 bicep_left = MusculotendonDeGroote2016(
     'bi_l',
     bicep_left_pathway,
@@ -504,7 +491,7 @@ bicep_left = MusculotendonDeGroote2016(
 )
 
 tricep_right_pathway = ExtensorPathway(G['2'], gh, -G['3'], H['3'], gm, hm, d8/10, q13)
-tricep_right_activation = FirstOrderActivationDeGroote2016.with_default_constants('tri_r')
+tricep_right_activation = FirstOrderActivationDeGroote2016.with_defaults('tri_r')
 tricep_right = MusculotendonDeGroote2016(
     'tri_r',
     tricep_right_pathway,
@@ -518,7 +505,7 @@ tricep_right = MusculotendonDeGroote2016(
 )
 
 tricep_left_pathway = ExtensorPathway(I['2'], ji, -I['3'], J['3'], im, jm, d8/10, q16)
-tricep_left_activation = FirstOrderActivationDeGroote2016.with_default_constants('tri_l')
+tricep_left_activation = FirstOrderActivationDeGroote2016.with_defaults('tri_l')
 tricep_left = MusculotendonDeGroote2016(
     'tri_l',
     tricep_left_pathway,
@@ -572,27 +559,34 @@ Fm = sum([musculotendon.to_loads() for musculotendon in musculotendons], start=[
 forces = [Fco, Fdo, Feo, Ffo, Fgo, Fho, Fio, Fjo, Tc, Td, Te] + Fm
 
 # Manually compute the ground contact velocities.
-kindiffdict = sm.solve(kinematical, [q3.diff(t), q4.diff(t), q5.diff(t),
-                                     q7.diff(t), q11.diff(t), q12.diff(t),
-                                     q13.diff(t), q14.diff(t), q15.diff(t),
-                                     q16.diff(t)], dict=True)[0]
+kindiffdict = sm.solve(kinematical, [
+    q1.diff(t),
+    q2.diff(t),
+    q3.diff(t),
+    q4.diff(t),
+    q5.diff(t),
+    q6.diff(t),
+    q7.diff(t),
+    q8.diff(t),
+    q11.diff(t),
+    q12.diff(t),
+    q13.diff(t),
+    q14.diff(t),
+    q15.diff(t),
+    q16.diff(t)], dict=True)[0]
 nonholonomic = nonholonomic.xreplace(kindiffdict)
-u1_def = -rr*(u5 + u6)*sm.cos(q3)
-u1p_def = u1_def.diff(t).xreplace(kindiffdict)
-u2_def = -rr*(u5 + u6)*sm.sin(q3)
-u2p_def = u2_def.diff(t).xreplace(kindiffdict)
+print('The nonholonomic constraints are a function of these dynamic variables:')
+print(list(sm.ordered(mec.find_dynamicsymbols(sm.Matrix(nonholonomic)))))
 
 ###############################
 # Prep symbolic data for output
 ###############################
 
-q_ind = (q3, q4, q7)  # yaw, roll, steer
+q_ind = (q1, q2, q3, q4, q6, q7, q8)  # yaw, roll, steer
 q_dep = (q5, q11, q12, q13, q14, q15, q16)  # pitch
-# NOTE : I think q3 is an ignorable coordinate too.
-# rear contact 1 dist, rear contact 2 dist, rear wheel angle, front wheel angle
-q_ign = (q1, q2, q6, q8)
+q_ign = None
 u_ind = (u4, u6, u7)  # roll rate, rear wheel rate, steer rate
-u_dep = (u3, u5, u8, u11, u12, u13, u14, u15, u16)  # yaw rate, pitch rate, front wheel rate
+u_dep = (u1, u2, u3, u5, u8, u11, u12, u13, u14, u15, u16)  # yaw rate, pitch rate, front wheel rate
 p = sm.Matrix([d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, g, ic11, ic22,
                ic31, ic33, id11, id22, ie11, ie22, ie31, ie33, if11, if22, l1,
                l2, l3, l4, mc, md, me, mf, mg, mh, mi, mj, rf, rr])
@@ -601,12 +595,13 @@ mt = sm.Matrix(list(musculotendon_constants.keys()))
 e = sm.Matrix.vstack(*[m.r for m in musculotendons])
 T = sm.Matrix([T4, T6, T7])
 r = sm.Matrix.vstack(T, e)
-u = sm.Matrix([u3, u4, u5, u6, u7, u8, u11, u12, u13, u14, u15, u16])
-q = sm.Matrix([q3, q4, q5, q6, q7, q8, q11, q12, q13, q14, q15, q16])
+u = sm.Matrix([u1, u2, u3, u4, u5, u6, u7, u8, u11, u12, u13, u14, u15, u16])
+q = sm.Matrix([q1, q2, q3, q4, q5, q6, q7, q8, q11, q12, q13, q14, q15, q16])
 a = sm.Matrix.vstack(*[m.x for m in musculotendons])
 ad = sm.Matrix.vstack(*[m.rhs() for m in musculotendons])
 
 points = (
+    O,
     dn,  # rear contact
     do,  # rear wheel center
     cgr,  # right shoulder
@@ -698,38 +693,43 @@ mt_vals = np.array(list(musculotendon_constants.values()))
 # start with some initial guess for the configuration and choose q1 as
 # independent
 q_vals = np.array([
-    np.deg2rad(0.0),  # 0: q3 [rad]
-    np.deg2rad(0.0),  # 1: q4 [rad]
-    np.deg2rad(np.pi/10.0),  # 2: q5 [rad]
-    np.deg2rad(0.0),  # 3: q6 [rad]
-    np.deg2rad(0.0),  # 4: q7 [rad]
-    np.deg2rad(0.0),  # 5: q8 [rad]
-    np.deg2rad(10.0),  # 6: q11 [rad]
-    np.deg2rad(0.0),  # 7: q12 [rad]
-    np.deg2rad(30.0),  # 8: q13 [rad]
-    np.deg2rad(10.0),  # 9: q14 [rad]
-    np.deg2rad(0.0),  # 10: q15 [rad]
-    np.deg2rad(30.0),  # 11: q16 [rad]
+    0.0,  # 0: q1 [m]
+    0.0,  # 1: q2 [m]
+    np.deg2rad(0.0),  # 2: q3 [rad]
+    np.deg2rad(0.0),  # 3: q4 [rad]
+    np.deg2rad(np.pi/10.0),  # 4: q5 [rad]
+    np.deg2rad(0.0),  # 5: q6 [rad]
+    np.deg2rad(0.0),  # 6: q7 [rad]
+    np.deg2rad(0.0),  # 7: q8 [rad]
+    np.deg2rad(10.0),  # 8: q11 [rad]
+    np.deg2rad(0.0),  # 9: q12 [rad]
+    np.deg2rad(30.0),  # 10: q13 [rad]
+    np.deg2rad(10.0),  # 11: q14 [rad]
+    np.deg2rad(0.0),  # 12: q15 [rad]
+    np.deg2rad(30.0),  # 13: q16 [rad]
 ])
 
 eval_holonomic = sm.lambdify((q, p), holonomic, cse=True)
 eval_nonholonomic = sm.lambdify((u, q, p), nonholonomic, cse=True)
 # x = [q5, q11, ..., q16]
-knw_idxs = [0, 1, 3, 4, 5]
-unk_idxs = [2, 6, 7, 8, 9, 10, 11]
+knw_idxs = [0, 1, 2, 3, 5, 6, 7]
+unk_idxs = [4, 8, 9, 10, 11, 12, 13]
 q_sol = fsolve(lambda x: eval_holonomic((
     q_vals[0],
     q_vals[1],
-    x[0],
+    q_vals[2],
     q_vals[3],
-    q_vals[4],
+    x[0],
     q_vals[5],
+    q_vals[6],
+    q_vals[7],
     x[1],
     x[2],
     x[3],
     x[4],
     x[5],
-    x[6]), p_vals).squeeze(), q_vals[unk_idxs])
+    x[6],
+), p_vals).squeeze(), q_vals[unk_idxs])
 # update all q_vals with constraint consistent values
 q_vals[unk_idxs] = q_sol
 print('Checking whether holonomic constrain holds with initial conditions:')
@@ -741,6 +741,8 @@ print(np.rad2deg(q_vals))
 speed = 5.0  # m/s
 
 u_vals = np.array([
+    speed,  # u1
+    0.0,  # u2
     0.0,  # u3
     0.4,  # u4
     0.0,  # u5
@@ -762,15 +764,17 @@ a_vals = np.array([
     0.01,  # tri_l
 ])
 
-k_idxs = [1, 3, 4]
-u_idxs = [0, 2, 5, 6, 7, 8, 9, 10, 11]
+k_idxs = [3, 5, 6]
+u_idxs = [0, 1, 2, 4, 7, 8, 9, 10, 11, 12, 13]
 u_sol = fsolve(lambda x: eval_nonholonomic((
     x[0],
-    u_vals[1],
     x[1],
+    x[2],
     u_vals[3],
-    u_vals[4],
-    x[2], x[3], x[4], x[5], x[6], x[7], x[8]),
+    x[3],
+    u_vals[5],
+    u_vals[6],
+    x[4], x[5], x[6], x[7], x[8], x[9], x[10]),
     q_vals, p_vals).squeeze(), u_vals[u_idxs])
 u_vals[u_idxs] = u_sol
 print('Initial speeds')
@@ -818,7 +822,7 @@ def eval_e_feedback(roll_rate):
 
 
 def eval_r(t, x):
-    roll_rate = x[13]
+    roll_rate = x[17]
     return [0.0, 0.0, 0.0] + eval_e_feedback(roll_rate)
 
 
@@ -837,11 +841,11 @@ def gen_pt_coord_func(frame, pts, q, p):
 eval_point_coords = gen_pt_coord_func(N, points, q, p)
 
 plot_data = plot_config(*eval_point_coords(q_vals, p_vals),
-                        xlim=(-0.75, 0.75), ylim=(-1.5, 0.0), zlim=(0, 1.5))
+                        xlim=(-10.0, 10.0), ylim=(-30.0, 0.0), zlim=(0, 10.0))
 fig, lines_top, lines_3d, lines_front, lines_right = plot_data
 
-ud = sm.Matrix([u3d, u4d, u5d, u6d, u7d, u8d, u11d, u12d, u13d, u14d, u15d,
-                u16d])
+ud = sm.Matrix([u1d, u2d, u3d, u4d, u5d, u6d, u7d, u8d, u11d, u12d, u13d, u14d,
+                u15d, u16d])
 # TODO : If you use ud.diff() instead of replacing and using ud and use
 # cse=True, lambdify fails (but not with cse=False), report to sympy.
 eval_kane = sm.lambdify((ud, u, q, a, r, p, mt),
@@ -872,30 +876,63 @@ def eval_eom(t, x, xd, residual, data):
 
     """
     p, mt, r_func = data
-    q = x[0:12]
-    u = x[12:24]
-    a = x[24:28]
-    qd = xd[0:12]
-    ud = xd[12:24]
-    ad = xd[24:28]
-    residual[0:12] = u - qd
+    q = x[0:14]
+    u = x[14:28]
+    a = x[28:32]
+    qd = xd[0:14]
+    ud = xd[14:28]
+    ad = xd[28:32]
+    residual[0:14] = u - qd
     r = r_func(t, x)
-    residual[12:15] = eval_kane(ud, u, q, a, r, p, mt).squeeze()  # shape(3,)
-    residual[15:22] = eval_holonomic(q, p).squeeze()  # shape(7,)
-    residual[22:24] = eval_nonholonomic(u, q, p).squeeze()[[0, 2]]  # shape(2,)
-    residual[24:28] = eval_ad(r[3:7], a).squeeze() - ad  # shape(4,)
+    residual[14:17] = eval_kane(ud, u, q, a, r, p, mt).squeeze()  # shape(3,)
+    residual[17:24] = eval_holonomic(q, p).squeeze()  # shape(7,)
+    residual[24:28] = eval_nonholonomic(u, q, p).squeeze()[[0, 1, 2, 4]]  # shape(4,)
+    residual[28:32] = eval_ad(r[3:7], a).squeeze() - ad  # shape(4,)
 
 
 x0 = np.hstack((q_vals, u_vals, a_vals))
 r_vals = eval_r(0.0, x0)
 ud0_ = np.linalg.solve(*eval_Mdgd(u_vals, q_vals, a_vals, r_vals, p_vals, mt_vals)).squeeze()
 # fix order
-ud0 = np.array([ud0_[3], ud0_[0], ud0_[4], ud0_[1], ud0_[2], ud0_[5], ud0_[6],
-                ud0_[7], ud0_[8], ud0_[9], ud0_[10], ud0_[11]])
+#kane.q
+#Matrix([
+#[ q1(t)],
+#[ q2(t)],
+#[ q3(t)],
+#[ q4(t)],
+#[ q6(t)],
+#[ q7(t)],
+#[ q8(t)],
+#[ q5(t)],
+#[q11(t)],
+#[q12(t)],
+#[q13(t)],
+#[q14(t)],
+#[q15(t)],
+#[q16(t)]])
+#kane.u
+#Matrix([
+#[ u4(t)],
+#[ u6(t)],
+#[ u7(t)],
+#[ u1(t)],
+#[ u2(t)],
+#[ u3(t)],
+#[ u5(t)],
+#[ u8(t)],
+#[u11(t)],
+#[u12(t)],
+#[u13(t)],
+#[u14(t)],
+#[u15(t)],
+#[u16(t)]])
+ud0 = np.array([ud0_[3], ud0_[4], ud0_[5], ud0_[0], ud0_[6], ud0_[1], ud0_[2],
+                ud0_[7], ud0_[8], ud0_[9], ud0_[10], ud0_[11], ud0_[12],
+                ud0_[13]])
 ad0 = eval_ad(r_vals[-4:], a_vals).squeeze()
 print(f'{ad0=}')
 xd0 = np.hstack((u_vals, ud0, ad0))
-resid = np.empty(28)
+resid = np.empty(32)
 eval_eom(0.1, x0, xd0, resid, (p_vals, mt_vals, eval_r))
 print('Initial residuals')
 print(resid)
@@ -908,7 +945,7 @@ solver = dae(
     first_step_size=0.01,
     rtol=1e-8,
     atol=1e-6,
-    algebraic_vars_idx=[15, 16, 17, 18, 19, 20, 21, 22, 23],
+    algebraic_vars_idx=[17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27],
     user_data=(p_vals, mt_vals, eval_r),
     old_api=False,
 )
@@ -920,11 +957,11 @@ xs = solution.values.y
 
 
 def animate(i):
-    x, y, z = eval_point_coords(xs[i, :12], p_vals)
+    x, y, z = eval_point_coords(xs[i, :14], p_vals)
     lines_top.set_data(x, y)
     lines_3d.set_data_3d(x, y, z)
-    lines_front.set_data(y, z)
-    lines_right.set_data(x, z)
+    lines_right.set_data(y, z)
+    lines_front.set_data(x, z)
 
 
 ani = FuncAnimation(fig, animate, len(ts))
